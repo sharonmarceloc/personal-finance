@@ -524,6 +524,26 @@ h2{font-size:19px}
 .fsum .nums b.inc{color:var(--income)}
 .fsum .bar{margin:2px 0 0}
 .tap{cursor:pointer}
+.fclear{flex:none;height:40px;padding:0 14px;border-radius:14px;background:var(--crit-soft);color:var(--crit);font-weight:700;font-size:14px}
+.fpill .badge2{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:rgba(255,255,255,.25);font-size:12px;font-weight:800}
+.fscrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45;opacity:0;pointer-events:none;transition:opacity .2s}
+.fscrim.show{opacity:1;pointer-events:auto}
+.fsheet{position:fixed;left:0;right:0;bottom:0;z-index:46;background:var(--bg);border-radius:24px 24px 0 0;display:flex;flex-direction:column;gap:10px;max-height:82%;
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.fsheet.show{transform:none}
+.fsheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 2px}
+.fshead{display:flex;justify-content:space-between;align-items:center}
+.fslink{color:var(--accent);font-weight:700;font-size:15px;padding:6px 4px}
+.fsnote{font-size:13px;color:var(--muted);margin-top:-6px}
+.fslist{overflow-y:auto;min-height:0;flex:1;background:var(--surface);border-radius:18px;box-shadow:var(--shadow,0 0 0 1px var(--line))}
+.fsgrp{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:12px 14px 4px}
+.fsopt{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;text-align:left;font-size:16px;border-top:1px solid var(--line)}
+.fsgrp + .fsopt,.fslist > .fsopt:first-child{border-top:0}
+.fsopt .e{width:24px;text-align:center}
+.fsopt .lb{flex:1;min-width:0}
+.fsopt .ck{flex:none;width:24px;height:24px;border-radius:12px;border:2px solid var(--line);display:grid;place-items:center;color:transparent;font-size:14px;font-weight:900}
+.fsopt[aria-checked="true"] .ck{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .curwrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:-6px}
 .seg.cur button{padding:6px 16px;font-size:13px}
 .fx{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);flex-wrap:wrap;justify-content:center}
@@ -610,11 +630,10 @@ h2{font-size:19px}
       <label class="fpill"><span class="k">Hasta</span><span id="hastaTxt"></span><input type="date" id="fHasta" aria-label="Hasta"></label>
     </div>
     <div class="fbar" id="fbar">
-      <label class="fpill" id="fpCat"><span class="k">Categoría</span><span class="v" id="fCatTxt">Todas</span><span class="car">▾</span><select id="fCat" aria-label="Categoría"></select></label>
-      <label class="fpill" id="fpMedio"><span class="k">Pago</span><span class="v" id="fMedioTxt">Todos</span><span class="car">▾</span><select id="fMedio" aria-label="Medio de pago"></select></label>
-      <label class="fpill" id="fpTipo"><span class="k">Tipo</span><span class="v" id="fTipoTxt">Todos</span><span class="car">▾</span><select id="fTipo" aria-label="Tipo de movimiento">
-        <option value="">Todos</option><option value="gasto">Solo gastos</option><option value="fijo">Gastos fijos</option><option value="variable">Gastos variables</option><option value="devolucion">Devoluciones</option><option value="hogar">Gastos del hogar</option><option value="usd">En dólares</option><option value="ingreso">Ingresos</option><option value="transferencia">Transferencias</option></select></label>
-      <button class="fclear" id="fClear" type="button" hidden>Limpiar</button>
+      <button class="fclear" id="fClear" type="button" hidden>✕ Quitar filtros</button>
+      <button class="fpill" id="fpCat" data-fsheet="cats" type="button"><span class="k">Categoría</span><span class="v" id="fCatTxt">Todas</span><span class="car">▾</span></button>
+      <button class="fpill" id="fpMedio" data-fsheet="medios" type="button"><span class="k">Pago</span><span class="v" id="fMedioTxt">Todos</span><span class="car">▾</span></button>
+      <button class="fpill" id="fpTipo" data-fsheet="tipos" type="button"><span class="k">Tipo</span><span class="v" id="fTipoTxt">Todos</span><span class="car">▾</span></button>
     </div>
     <div id="movList"></div>
   </main>
@@ -758,6 +777,14 @@ h2{font-size:19px}
   <div class="mfoot"><button class="btn" id="rSave" type="button">Guardar</button></div>
 </div>
 
+<div class="fscrim" id="fScrim"></div>
+<div class="fsheet" id="fSheet" role="dialog" aria-modal="true" aria-labelledby="fsTitle">
+  <div class="grab"></div>
+  <div class="fshead"><h2 id="fsTitle">Filtrar</h2><button class="fslink" id="fsNone" type="button">Ninguno</button></div>
+  <div class="fsnote">Puedes elegir varios.</div>
+  <div class="fslist" id="fsList"></div>
+  <button class="btn" id="fsDone" type="button">Listo</button>
+</div>
 <div class="toast" id="toast" role="status"><div class="tx" id="toastTx"></div><button id="undoBtn" type="button">Deshacer</button></div>
 
 <script>
@@ -1165,7 +1192,7 @@ $('prev').onclick=()=>navMonth(-1);$('next').onclick=()=>navMonth(1);
 $('prev2').onclick=()=>navMonth(-1);$('next2').onclick=()=>navMonth(1);
 $('s-res').addEventListener('click',e=>{
   const d=e.target.closest('[data-drill]');
-  if(d){mf={mode:'mes',cat:'g:'+d.dataset.drill,medio:'',tipo:'',desde:mf.desde,hasta:mf.hasta};go('movs');return;}
+  if(d){mf={mode:'mes',cats:['g:'+d.dataset.drill],medios:[],tipos:[],desde:mf.desde,hasta:mf.hasta};go('movs');return;}
   const b=e.target.closest('[data-more]');if(!b)return;
   if(b.dataset.more==='legend'){allLegend=!allLegend;renderDonut();}else{allBud=!allBud;renderBudgets();}});
 $('donutSeg').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b)return;filtro=b.dataset.f;document.querySelectorAll('#donutSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderDonut();});
@@ -1323,7 +1350,7 @@ function interestChart(){
     <div class="leg"><span><i style="background:var(--accent)"></i>Recibido (confirmado)</span><span><i style="background:var(--accent);opacity:.3"></i>Estimado, sin confirmar</span></div></div>`;
 }
 $('savings').addEventListener('click',e=>{
-  const sm=e.target.closest('[data-savmovs]');if(sm){mf={mode:'mes',cat:'',medio:'acc:'+sm.dataset.savmovs,tipo:'',desde:mf.desde,hasta:mf.hasta};go('movs');return;}
+  const sm=e.target.closest('[data-savmovs]');if(sm){mf={mode:'mes',cats:[],medios:['acc:'+sm.dataset.savmovs],tipos:[],desde:mf.desde,hasta:mf.hasta};go('movs');return;}
   const v=e.target.closest('[data-verify]');if(v){openVerify=v.dataset.verify;renderSavings();const i=$('vMonto-'+openVerify);i&&i.focus();return;}
   if(e.target.closest('[data-vcancel]')){openVerify=null;renderSavings();return;}
   if(!e.target.closest('[data-vok]'))return;
@@ -1357,14 +1384,39 @@ function renderSim(){
 }
 
 // ---------- movimientos ----------
-let mf={mode:'mes',cat:'',medio:'',tipo:'',desde:'',hasta:''};
+let mf={mode:'mes',cats:[],medios:[],tipos:[],desde:'',hasta:''};
+const TIPOS=[['gasto','Solo gastos','💳'],['fijo','Gastos fijos','📌'],['variable','Gastos variables','〰️'],['hogar','Gastos del hogar','🏠'],['devolucion','Devoluciones','↩️'],['usd','En dólares','💵'],['ingreso','Ingresos','💼'],['transferencia','Transferencias','⇄']];
+function tipoMatch(i,t){
+  switch(t){case 'gasto':return i.kind==='gasto';case 'fijo':case 'variable':return isExp(i)&&(i.tipo||'variable')===t;
+    case 'hogar':return isExp(i)&&!!i.hogar;case 'devolucion':return i.kind==='devolucion';case 'usd':return i.moneda==='USD';
+    case 'ingreso':return i.kind==='ingreso';case 'transferencia':return i.kind==='transferencia';}return true;}
+function fOptions(key){
+  if(key==='cats')return [['Gastos',sortCats().map(c=>['g:'+c.id,c.nombre,c.emoji])],['Ingresos',INC_CATS.filter(c=>c.id!=='reembolso'||st.items.some(i=>i.cat==='reembolso')).map(c=>['i:'+c.id,c.nombre,c.emoji])]];
+  if(key==='medios'){const m=[...new Set([...MEDIOS,'BCP',...st.items.map(i=>i.medio).filter(x=>x&&x!=='Ahorro'&&x!=='Compartamos')])];
+    return [['Tarjetas y cuentas',m.map(x=>[x,medioTxt(x),''])],['Ahorros',st.ahorros.map(a=>['acc:'+a.id,a.nombre||'Ahorros','🏦'])]];}
+  return [['',TIPOS.map(([v,l,e])=>[v,l,e])]];
+}
+const optLabel=(key,v)=>{for(const[,list]of fOptions(key))for(const o of list)if(o[0]===v)return o[1];return v;};
+let fsKey=null;
+function openFSheet(key){fsKey=key;$('fsTitle').textContent={cats:'Categorías',medios:'Medio de pago',tipos:'Tipo de movimiento'}[key];drawFSheet();$('fScrim').classList.add('show');$('fSheet').classList.add('show');}
+function closeFSheet(){fsKey=null;$('fScrim').classList.remove('show');$('fSheet').classList.remove('show');}
+function drawFSheet(){
+  const sel=mf[fsKey];
+  $('fsList').innerHTML=fOptions(fsKey).filter(([,l])=>l.length).map(([g,list])=>(g?`<div class="fsgrp">${esc(g)}</div>`:'')+list.map(([v,l,e])=>
+    `<button type="button" class="fsopt" role="checkbox" data-v="${esc(v)}" aria-checked="${sel.includes(v)}"><span class="e">${esc(e)}</span><span class="lb">${esc(l)}</span><span class="ck">✓</span></button>`).join('')).join('');
+  $('fsNone').hidden=!sel.length;
+}
+document.querySelectorAll('[data-fsheet]').forEach(b=>b.addEventListener('click',()=>openFSheet(b.dataset.fsheet)));
+$('fsList').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(!b)return;const v=b.dataset.v,a=mf[fsKey];
+  const ix=a.indexOf(v);ix<0?a.push(v):a.splice(ix,1);drawFSheet();renderMovs();});
+$('fsNone').onclick=()=>{mf[fsKey]=[];drawFSheet();renderMovs();};
+$('fsDone').onclick=()=>{closeFSheet();$('fbar').scrollLeft=0;};$('fScrim').onclick=closeFSheet;
 const shortDate=v=>v?new Date(v+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short',year:'2-digit'}):'—';
 function ensureRange(){
   if(!mf.hasta)mf.hasta=todayStr();
   if(!mf.desde)mf.desde=shiftKey(curKey(),-2)+'-01';
   if(mf.desde>mf.hasta){const t=mf.desde;mf.desde=mf.hasta;mf.hasta=t;}
 }
-function setSel(id,html,val){const el=$(id);el.innerHTML=html;el.value=[...el.options].some(o=>o.value===val)?val:'';return el.value;}
 function renderMovs(){
   ensureRange();
   const isMes=mf.mode==='mes';
@@ -1372,33 +1424,22 @@ function renderMovs(){
   $('mnav2').hidden=!isMes;$('rangeBox').hidden=isMes;
   if(isMes){$('mlabel2').textContent=monthName(viewKey);$('next2').disabled=viewKey>=curKey();}
   else{$('fDesde').value=mf.desde;$('fHasta').value=mf.hasta;$('fDesde').max=$('fHasta').max=todayStr();$('desdeTxt').textContent=shortDate(mf.desde);$('hastaTxt').textContent=shortDate(mf.hasta);}
-  // opciones de filtros
-  const catHtml='<option value="">Todas</option><optgroup label="Gastos">'+sortCats().map(c=>`<option value="g:${esc(c.id)}">${esc(c.emoji)} ${esc(c.nombre)}</option>`).join('')+
-    '</optgroup><optgroup label="Ingresos">'+INC_CATS.map(c=>`<option value="i:${esc(c.id)}">${esc(c.emoji)} ${esc(c.nombre)}</option>`).join('')+'</optgroup>';
-  mf.cat=setSel('fCat',catHtml,mf.cat);
-  const medios=[...new Set([...MEDIOS,'BCP',...st.items.map(i=>i.medio).filter(m=>m&&m!=='Ahorro'&&m!=='Compartamos')])];
-  mf.medio=setSel('fMedio','<option value="">Todos</option>'+medios.map(m=>`<option value="${esc(m)}">${esc(medioTxt(m))}</option>`).join('')+
-    st.ahorros.map(a=>`<option value="acc:${esc(a.id)}">${esc(a.nombre||'Ahorros')}</option>`).join(''),mf.medio);
-  $('fTipo').value=mf.tipo;
-  const label=id=>{const el=$(id);return el.value?el.options[el.selectedIndex].text:null;};
-  [['fCat','fCatTxt','fpCat','Todas'],['fMedio','fMedioTxt','fpMedio','Todos'],['fTipo','fTipoTxt','fpTipo','Todos']].forEach(([sel,txt,pill,def])=>{
-    const l=label(sel);$(txt).textContent=l||def;$(pill).classList.toggle('on',!!l);});
-  $('fClear').hidden=!(mf.cat||mf.medio||mf.tipo);
-  // filtrar
-  const [ck,cid]=mf.cat?mf.cat.split(':'):['',''];
+  // filtros activos
+  const valid=key=>{const ok=new Set(fOptions(key).flatMap(([,l])=>l.map(o=>o[0])));mf[key]=mf[key].filter(v=>ok.has(v));};
+  ['cats','medios','tipos'].forEach(valid);
+  [['cats','fCatTxt','fpCat','Todas'],['medios','fMedioTxt','fpMedio','Todos'],['tipos','fTipoTxt','fpTipo','Todos']].forEach(([key,txt,pill,def])=>{
+    const a=mf[key];$(txt).textContent=!a.length?def:a.length===1?optLabel(key,a[0]):`${a.length} ${key==='cats'?'elegidas':'elegidos'}`;$(pill).classList.toggle('on',!!a.length);});
+  const nAct=mf.cats.length+mf.medios.length+mf.tipos.length;
+  const wasHidden=$('fClear').hidden;$('fClear').hidden=!nAct;$('fClear').textContent=`✕ Quitar filtros (${nAct})`;
+  if(nAct&&wasHidden)$('fbar').scrollLeft=0;
+  const one=mf.cats.length===1?mf.cats[0].split(':'):['',''],ck=one[0],cid=one[1];
   const inPeriod=i=>isMes?i.fecha.slice(0,7)===viewKey:(i.fecha>=mf.desde&&i.fecha<=mf.hasta);
+  // dentro de cada filtro: cualquiera de lo elegido; entre filtros: todos a la vez
   const match=i=>{
-    const inc=i.kind==='ingreso',tr=i.kind==='transferencia';
-    if(ck==='g'&&(!isExp(i)||i.cat!==cid))return false;
-    if(ck==='i'&&(!inc||i.cat!==cid))return false;
-    if(mf.medio&&(mf.medio.startsWith('acc:')?i.acc!==mf.medio.slice(4):(i.medio!==mf.medio||(i.acc&&!tr))))return false;
-    if(mf.tipo==='transferencia'&&!tr)return false;
-    if(mf.tipo==='hogar'&&!(isExp(i)&&i.hogar))return false;
-    if(mf.tipo==='usd'&&i.moneda!=='USD')return false;
-    if(mf.tipo==='gasto'&&i.kind!=='gasto')return false;
-    if(mf.tipo==='devolucion'&&i.kind!=='devolucion')return false;
-    if(mf.tipo==='ingreso'&&!inc)return false;
-    if((mf.tipo==='fijo'||mf.tipo==='variable')&&(!isExp(i)||(i.tipo||'variable')!==mf.tipo))return false;
+    const tr=i.kind==='transferencia';
+    if(mf.cats.length&&!mf.cats.some(c=>{const[k,id]=c.split(':');return k==='g'?isExp(i)&&i.cat===id:i.kind==='ingreso'&&i.cat===id;}))return false;
+    if(mf.medios.length&&!mf.medios.some(m=>m.startsWith('acc:')?i.acc===m.slice(4):(i.medio===m&&(!i.acc||tr))))return false;
+    if(mf.tipos.length&&!mf.tipos.some(t=>tipoMatch(i,t)))return false;
     return true;};
   const its=st.items.filter(i=>inPeriod(i)&&match(i)).sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:(b.ts||0)-(a.ts||0));
   const g=its.filter(isExp).reduce((s,i)=>s+amt(i),0),inc=its.filter(i=>i.kind==='ingreso').reduce((s,i)=>s+i.monto,0);
@@ -1407,22 +1448,23 @@ function renderMovs(){
   let head='';
   const cat=ck==='g'?catById(cid):ck==='i'?incById(cid):null;
   const lim=ck==='g'&&isMes?Number(cat.presupuesto)||0:0;
-  const filtered=mf.cat||mf.medio||mf.tipo;
+  const filtered=nAct>0;
   if(filtered||!isMes){
     const n=[];
-    if(mf.tipo==='usd'){
+    const usdOnly=mf.tipos.length===1&&mf.tipos[0]==='usd';
+    if(usdOnly){
       const ex=its.filter(isExp),sg=i=>i.kind==='devolucion'?-1:1;
       const usd=ex.reduce((s,i)=>s+sg(i)*i.montoOrig,0),pen=ex.reduce((s,i)=>s+sg(i)*i.monto,0);
       const iu=its.filter(i=>i.kind==='ingreso'),iusd=iu.reduce((s,i)=>s+i.montoOrig,0),ipen=iu.reduce((s,i)=>s+i.monto,0);
       if(ex.length){n.push(`<div>Total en dólares<b>US$ ${fmt(usd)}</b></div>`,`<div>Equivale en soles<b>${money(pen)}</b></div>`);
         if(usd)n.push(`<div>TC promedio<b>${fmt(pen/usd,3)}</b></div>`);}
       if(iu.length)n.push(`<div>Ingresos en dólares<b class="inc">${hideMoney?'US$ ••••':'US$ '+fmt(iusd)}</b></div>`,`<div>En soles<b class="inc">${hideMoney?MASK:money(ipen)}</b></div>`);
-    }else     if(its.some(isExp)||(!its.length&&ck!=='i'&&mf.tipo!=='transferencia'))n.push(`<div>${dev?'Gasto neto':'Gastos'}<b>${money(g)}</b></div>`);
+    }else if(its.some(isExp)||(!its.length&&ck!=='i'))n.push(`<div>${dev?'Gasto neto':'Gastos'}<b>${money(g)}</b></div>`);
     if(dev)n.push(`<div>Devuelto<b class="inc">${money(dev)}</b></div>`);
     const ret=its.filter(i=>i.kind==='transferencia'&&i.dir==='retiro').reduce((s,i)=>s+i.monto,0),dep=its.filter(i=>i.kind==='transferencia'&&i.dir==='deposito').reduce((s,i)=>s+i.monto,0);
     if(ret)n.push(`<div>Retirado de ahorros<b>${hideMoney?MASK:money(ret)}</b></div>`);
     if(dep)n.push(`<div>Depositado a ahorros<b>${hideMoney?MASK:money(dep)}</b></div>`);
-    if(inc&&mf.tipo!=='usd')n.push(`<div>Ingresos<b class="inc">${hideMoney?MASK:money(inc)}</b></div>`);
+    if(inc&&!usdOnly)n.push(`<div>Ingresos<b class="inc">${hideMoney?MASK:money(inc)}</b></div>`);
     if(lim)n.push(`<div>De su límite<b class="${g>lim?'neg':''}">${Math.round(g/lim*100)}%</b></div>`);
     if(ck==='g'){const av=avgFor(isMes?viewKey:curKey()).per[cid];if(av)n.push(`<div>Prom. mensual<b>${money0(av)}</b></div>`);}
     head=`<div class="fsum">${cat?`<div class="ttl"><span class="bi" style="--c:${esc(cat.color||'var(--income)')}">${esc(cat.emoji)}</span>${esc(cat.nombre)}</div>`:''}
@@ -1444,10 +1486,7 @@ function renderMovs(){
         return `<button class="mv${isInc?' inc':''}${isDev?' dev':''}" data-id="${esc(i.id)}" type="button"><span class="ic" style="--c:${isInc||isDev?'var(--income)':esc(c.color)}">${esc(isDev?'↩':c.emoji)}</span><span class="d"><div>${esc(i.nota||(isDev?'Devolución':c.nombre))}${isDev?'<span class="ftag dev">Devolución</span>':''}${i.hogar&&!isDev?'<span class="ftag home">Hogar</span>':''}${i.tipo==='fijo'&&!isDev?'<span class="ftag">Fijo</span>':''}${i.auto?'<span class="ftag auto">Auto</span>':''}</div><div>${sub}</div></span><span class="a num">${isInc?'+ ':isDev?'− ':''}${i.moneda==='USD'?'US$ '+fmt(i.montoOrig)+'<small>'+money(i.monto)+'</small>':money(i.monto)}</span></button>`;}).join('')}</div></div>`;}).join('');
 }
 $('pmode').addEventListener('click',e=>{const b=e.target.closest('[data-pm]');if(!b)return;mf.mode=b.dataset.pm;renderMovs();});
-$('fCat').onchange=()=>{mf.cat=$('fCat').value;if(mf.cat.startsWith('i:')&&mf.tipo!=='ingreso')mf.tipo='';if(mf.cat.startsWith('g:')&&mf.tipo==='ingreso')mf.tipo='';renderMovs();};
-$('fMedio').onchange=()=>{mf.medio=$('fMedio').value;renderMovs();};
-$('fTipo').onchange=()=>{mf.tipo=$('fTipo').value;renderMovs();};
-$('fClear').onclick=()=>{mf.cat=mf.medio=mf.tipo='';renderMovs();};
+$('fClear').onclick=()=>{mf.cats=[];mf.medios=[];mf.tipos=[];renderMovs();};
 $('fDesde').onchange=()=>{if($('fDesde').value)mf.desde=$('fDesde').value;renderMovs();};
 $('fHasta').onchange=()=>{if($('fHasta').value)mf.hasta=$('fHasta').value;renderMovs();};
 $('movList').addEventListener('click',e=>{const b=e.target.closest('[data-id]');if(b)openReg(b.dataset.id);});
