@@ -725,7 +725,9 @@ const CUENTAS=['BCP','Compartamos'];
 const accById=id=>st.ahorros.find(a=>a.id===id);
 const destLabel=i=>i.acc?((accById(i.acc)||{}).nombre||'Ahorros'):medioTxt(i.medio);
 // una devolución que entra a una cuenta de ahorro suma a su saldo
-function applySav(i,sign){if(!i||i.kind!=='devolucion'||!i.acc)return;const a=accById(i.acc);if(a)a.saldo=Math.round(((Number(a.saldo)||0)+sign*i.monto)*100)/100;}
+const dropConf=id=>st.ahorros.forEach(a=>Object.keys(a.conf||{}).forEach(k=>{if(a.conf[k].id===id)delete a.conf[k];}));
+const affectsSav=i=>!!(i&&i.acc&&(i.kind==='devolucion'||i.sav));
+function applySav(i,sign){if(!affectsSav(i))return;const a=accById(i.acc);if(a)a.saldo=Math.round(((Number(a.saldo)||0)+sign*i.monto)*100)/100;}
 // las devoluciones restan del gasto de su categoría
 const amt=i=>i.kind==='devolucion'?-i.monto:i.monto;
 const refunded=id=>st.items.filter(i=>i.kind==='devolucion'&&i.ref===id).reduce((s,i)=>s+i.monto,0);
@@ -758,7 +760,7 @@ const now=()=>new Date();
 const todayStr=()=>dstr(now());
 const curKey=()=>todayStr().slice(0,7);
 const defaultAcc=()=>({id:'compartamos',nombre:'Ahorro principal',tipo:'Ahorro',saldo:20000,trea:4.6,desde:curKey(),conf:{}});
-const DEFAULT_STATE=()=>({v:5,cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
+const DEFAULT_STATE=()=>({v:6,cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
 
 // ---------- estado ----------
 function migrate(s){
@@ -786,6 +788,13 @@ function migrate(s){
       if(acc){i.acc=acc.id;i.medio='Ahorro';acc.saldo=Math.round(((Number(acc.saldo)||0)+i.monto)*100)/100;}
       else i.medio='BCP';}});
     s.v=5;
+  }
+  if(s.v<6){
+    const ids=new Set(s.items.map(i=>i.id));
+    (s.ahorros||[]).forEach(a=>{Object.keys(a.conf||{}).forEach(k=>{const c=a.conf[k];
+      if(!ids.has(c.id)){a.saldo=Math.round(((Number(a.saldo)||0)-c.monto)*100)/100;delete a.conf[k];}
+      else{const it=s.items.find(i=>i.id===c.id);it.acc=a.id;it.sav=true;c.sum=true;}});});
+    s.v=6;
   }
   return s;
 }
@@ -998,7 +1007,11 @@ $('rSave').addEventListener('click',()=>{
     if(reg.cuenta.startsWith('acc:')){data.acc=reg.cuenta.slice(4);data.medio='Ahorro';}else data.medio='BCP';}
   let item;
   if(reg.editId){item=st.items.find(x=>x.id===reg.editId);if(!item)return closeReg();
-    applySav(item,-1);['tipo','medio','ref','acc'].forEach(f=>delete item[f]);Object.assign(item,data);applySav(item,1);}
+    const keep=item.kind==='ingreso'&&item.acc?{acc:item.acc,sav:item.sav}:null;
+    applySav(item,-1);['tipo','medio','ref','acc','sav'].forEach(f=>delete item[f]);Object.assign(item,data);
+    if(keep&&item.kind==='ingreso'&&item.cat==='intereses')Object.assign(item,keep);
+    applySav(item,1);
+    st.ahorros.forEach(a=>Object.values(a.conf||{}).forEach(c=>{if(c.id===item.id)c.monto=item.kind==='ingreso'&&item.cat==='intereses'?item.monto:c.monto;}));}
   else{item={id:uid(),...data,ts:Date.now()};st.items.push(item);applySav(item,1);}
   if(!save())return;
   closeReg();
@@ -1013,7 +1026,7 @@ $('rSave').addEventListener('click',()=>{
 });
 $('rDel').addEventListener('click',()=>{
   const b=$('rDel');if(!b.classList.contains('confirm')){b.classList.add('confirm');b.textContent='Toca de nuevo para eliminar';return;}
-  applySav(st.items.find(x=>x.id===reg.editId),-1);st.items=st.items.filter(x=>x.id!==reg.editId);save();closeReg();refresh();
+  applySav(st.items.find(x=>x.id===reg.editId),-1);dropConf(reg.editId);st.items=st.items.filter(x=>x.id!==reg.editId);save();closeReg();refresh();
 });
 // mantener el botón Guardar visible sobre el teclado del iPhone
 // y llevar a la vista el campo que se está escribiendo (ej. Detalle)
@@ -1200,9 +1213,10 @@ $('savings').addEventListener('click',e=>{
   const real=parseNum($('vMonto-'+a.id).value);
   if(!(real>0)){const d=$('vDiff-'+a.id);d.className='diff warn';d.textContent='Escribe el monto que recibiste.';return;}
   const k=viewKey,est=interestEst(a,k);
-  const item={id:uid(),kind:'ingreso',fecha:k===curKey()?todayStr():`${k}-${pad(daysIn(k))}`,monto:Math.round(real*100)/100,cat:'intereses',nota:'Intereses',ts:Date.now()};
-  st.items.push(item);a.conf=a.conf||{};a.conf[k]={monto:item.monto,est:Math.round(est*100)/100,id:item.id};
-  if($('vSum-'+a.id).checked)a.saldo=Math.round(((Number(a.saldo)||0)+item.monto)*100)/100;
+  const sum=$('vSum-'+a.id).checked;
+  const item={id:uid(),kind:'ingreso',fecha:k===curKey()?todayStr():`${k}-${pad(daysIn(k))}`,monto:Math.round(real*100)/100,cat:'intereses',nota:'Intereses',acc:a.id,sav:sum,ts:Date.now()};
+  st.items.push(item);a.conf=a.conf||{};a.conf[k]={monto:item.monto,est:Math.round(est*100)/100,id:item.id,sum};
+  applySav(item,1);
   save();openVerify=null;showToast(`<b>+ ${money(item.monto)} · 🏦 Intereses</b>Agregado como ingreso de ${esc(monthOnly(k))}`,null);refresh();
 });
 $('savings').addEventListener('input',e=>{
