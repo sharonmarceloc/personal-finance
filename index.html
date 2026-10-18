@@ -177,6 +177,9 @@ h2{font-size:17px;font-weight:700;margin:0}
 .mbody{flex:1;min-height:0;overflow-y:auto;padding:10px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:18px}
 .mfoot{padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--bg);border-top:1px solid var(--line)}
 .modal.kb .mfoot{padding-bottom:10px}
+.modal.kb .mbody{padding-bottom:45vh}
+.mbody > *{flex-shrink:0}
+.nota{scroll-margin:24px}
 .amtbox{display:flex;align-items:baseline;justify-content:center;gap:6px;border-bottom:2px solid var(--line);padding-bottom:6px}
 .amtbox:focus-within{border-color:var(--accent)}
 .amtbox span{font-size:26px;font-weight:700;color:var(--muted)}
@@ -898,8 +901,19 @@ $('rDel').addEventListener('click',()=>{
   st.items=st.items.filter(x=>x.id!==reg.editId);save();closeReg();refresh();
 });
 // mantener el botón Guardar visible sobre el teclado del iPhone
+// y llevar a la vista el campo que se está escribiendo (ej. Detalle)
+function revealField(){
+  const el=document.activeElement;
+  if(!el||!$('reg').classList.contains('show')||!$('rBody').contains(el)||el===$('rMonto'))return;
+  const body=$('rBody'),b=body.getBoundingClientRect(),r=el.getBoundingClientRect();
+  const target=body.scrollTop+(r.top-b.top)-(b.height-r.height)/2;
+  body.scrollTo({top:Math.max(0,target),behavior:'smooth'});
+}
+let revealT=null;
+const queueReveal=()=>{clearTimeout(revealT);revealT=setTimeout(revealField,60);};
+$('rBody').addEventListener('focusin',()=>{queueReveal();setTimeout(revealField,350);});
 if(window.visualViewport){
-  const fit=()=>{const vv=window.visualViewport,m=$('reg');m.style.height=vv.height+'px';m.style.top=vv.offsetTop+'px';m.classList.toggle('kb',vv.height<window.innerHeight-120);};
+  const fit=()=>{const vv=window.visualViewport,m=$('reg');m.style.height=vv.height+'px';m.style.top=vv.offsetTop+'px';m.classList.toggle('kb',vv.height<window.innerHeight-120);queueReveal();};
   visualViewport.addEventListener('resize',fit);visualViewport.addEventListener('scroll',fit);
 }
 
