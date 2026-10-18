@@ -1,6 +1,6 @@
-// Mis Gastos: guarda la app para que abra sin internet.
+// FastClick: guarda la app para que abra sin internet.
 // Cuando cambies index.html, sube el número de versión para que el iPhone tome la nueva.
-const CACHE = 'mis-gastos-v1';
+const CACHE = 'fastclick-v1';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
