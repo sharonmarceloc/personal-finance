@@ -524,6 +524,33 @@ h2{font-size:19px}
 .fsum .nums b.inc{color:var(--income)}
 .fsum .bar{margin:2px 0 0}
 .tap{cursor:pointer}
+:root{--hf:#0b5a48;--hv:#d9b56a}
+@media (prefers-color-scheme:dark){:root{--hf:#3fae8c;--hv:#e2c27d}}
+.hist{width:100%;height:auto;display:block;margin-top:10px}
+#histSeg button{white-space:nowrap;padding:6px 10px}
+#histCard .row h2{min-width:0}
+.hist .hb{cursor:pointer}
+.hleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px;align-items:center}
+.hleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.havg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.havg div{background:var(--sunk);border-radius:12px;padding:8px 10px;min-width:0}
+.havg span{display:block;font-size:11px;color:var(--muted);font-weight:700}
+.havg b{font-size:15px}
+.detbtn{margin-top:10px;font-size:14px;font-weight:700;color:var(--accent);padding:6px 0}
+.accdet{margin-top:8px;padding:12px;border-radius:14px;background:var(--sunk)}
+.accdet .note{margin:4px 0 8px}
+.tw{overflow-x:auto}
+.dt{width:100%;border-collapse:collapse;font-size:13px}
+.dt th{font-size:11px;color:var(--muted);font-weight:700;text-align:left;padding:4px 4px 6px}
+.dt th.num,.dt td.num{text-align:right;white-space:nowrap}
+.dt td{padding:6px 4px;border-top:1px solid var(--line);vertical-align:top}
+.dt td:first-child{white-space:nowrap}
+.dt td small{display:block;color:var(--muted);font-size:11.5px}
+.dt tr.proj td{color:var(--muted);font-style:italic}
+.dt tfoot td{font-weight:800;border-top:2px solid var(--line)}
+.dt tr.sub td{color:var(--muted);font-weight:600}
+.dt .pos{color:var(--income)}.dt .neg{color:var(--crit)}
+.crow .sub .full{grid-column:1/-1}
 .fclear{flex:none;height:40px;padding:0 14px;border-radius:14px;background:var(--crit-soft);color:var(--crit);font-weight:700;font-size:14px}
 .fpill .badge2{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:rgba(255,255,255,.25);font-size:12px;font-weight:800}
 .fscrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -611,6 +638,11 @@ h2{font-size:19px}
         <div class="seg" id="donutSeg"><button data-f="total" aria-pressed="true">Total</button><button data-f="variable" aria-pressed="false">Variables</button></div></div>
       <div id="donutWrap"></div>
     </div>
+    <div class="card" id="histCard">
+      <div class="row"><h2>Histórico de gastos</h2>
+        <div class="seg" id="histSeg"><button data-h="6" aria-pressed="true" type="button">6 meses</button><button data-h="12" aria-pressed="false" type="button">12 meses</button></div></div>
+      <div id="histWrap"></div>
+    </div>
     <div class="card">
       <h2>Presupuestos</h2>
       <div class="note small" style="margin-top:2px">La rayita marca dónde deberías ir hoy</div>
@@ -680,7 +712,7 @@ h2{font-size:19px}
         <button class="btn slim" id="pwBtn" type="button">Desbloquear</button>
       </div>
       <div id="invOpen" hidden>
-        <p class="note small" style="margin:4px 0 6px">Usa un alias, sin el nombre del banco. Con el saldo y la TREA calculo el interés estimado de cada mes; lo confirmas en el Resumen cuando veas el depósito real.</p>
+        <p class="note small" style="margin:4px 0 6px">Usa un alias, sin el nombre del banco. El saldo se calcula solo: <b>saldo inicial</b> + depósitos, devoluciones e intereses − retiros registrados después de esa fecha. Si algún día no cuadra con tu banco, pon como saldo inicial lo que ves hoy en tu banco y la fecha de hoy.</p>
         <div id="accEdit"></div>
         <button class="btn sec" id="addAcc" type="button" style="margin-top:8px">+ Agregar cuenta o inversión</button>
       </div>
@@ -745,6 +777,7 @@ h2{font-size:19px}
       <div class="lbl" style="margin-top:6px" id="accLbl">Cuenta de ahorro</div>
       <div class="chips pay" id="accChips"></div>
       <div class="flow" id="flowTxt"></div>
+      <div id="motSec"><div class="lbl" style="margin-top:6px">¿Por qué retiras? <span class="opt">(opcional)</span></div><div class="chips pay" id="motChips"></div></div>
       <div class="tiphint">No es gasto ni ingreso: solo mueve tu plata entre tus cuentas.</div>
     </div>
     <div class="rsec" id="catSec">
@@ -802,7 +835,35 @@ const dropConf=id=>st.ahorros.forEach(a=>Object.keys(a.conf||{}).forEach(k=>{if(
 const affectsSav=i=>!!(i&&i.acc&&(i.kind==='devolucion'||i.kind==='transferencia'||i.sav));
 // cuánto mueve cada movimiento el saldo de su cuenta de ahorro
 const savDelta=i=>i.kind==='transferencia'?(i.dir==='deposito'?i.monto:-i.monto):i.monto;
-function applySav(i,sign){if(!affectsSav(i))return;const a=accById(i.acc);if(a)a.saldo=Math.round(((Number(a.saldo)||0)+sign*savDelta(i))*100)/100;}
+function applySav(){} // el saldo ya no se guarda: se calcula desde el estado de cuenta
+const r2=v=>Math.round(v*100)/100;
+const dayBefore=d=>dstr(new Date(new Date(d+'T12:00').getTime()-864e5));
+const accItems=(a,skipId)=>st.items.filter(i=>i.acc===a.id&&affectsSav(i)&&i.id!==skipId);
+// saldo al cierre del día d (incluye los movimientos de ese día).
+// El saldo inicial ya incluye lo registrado antes de fijarlo (hasta su fecha); todo lo registrado después cuenta desde su propia fecha.
+function balAt(a,d,skipId){const b=a.base||{fecha:'0000-00-00',saldo:0,ts:0},bts=b.ts||0;
+  let v=Number(b.saldo)||0;
+  for(const i of accItems(a,skipId)){const dl=savDelta(i),known=(i.ts||0)<=bts&&i.fecha<=b.fecha;
+    if(known){if(d<b.fecha&&i.fecha>d)v-=dl;}      // ya estaba en el saldo inicial: se descuenta hacia atrás
+    else if(i.fecha<=d)v+=dl;}                      // nuevo o posterior: suma desde su fecha
+  return r2(v);}
+const accSaldo=(a,skipId)=>balAt(a,'9999-12-31',skipId);
+const dailyRate=a=>Math.pow(1+(Number(a.trea)||0)/100,1/360)-1;
+// interés del mes con saldo diario: cada sol gana por los días que estuvo en la cuenta
+function interestCalc(a,k){
+  const dim=daysIn(k),rd=dailyRate(a),isCur=k===curKey(),today=now().getDate();
+  const paid=(a.conf||{})[k],skip=paid?paid.id:null;
+  const segs=[];let total=0,toDate=0;
+  for(let d=1;d<=dim;d++){
+    const proj=isCur&&d>today,date=`${k}-${pad(proj?today:d)}`;
+    const bal=Math.max(0,balAt(a,date,skip)),it=bal*rd;total+=it;if(!proj)toDate+=it;
+    const last=segs[segs.length-1];
+    if(last&&last.bal===bal&&last.proj===proj){last.to=d;last.days++;last.int+=it;}
+    else segs.push({from:d,to:d,days:1,bal,int:it,proj});
+  }
+  return{total,toDate,segs,rd,isCur};
+}
+const interestEst=(a,k)=>interestCalc(a,k).total;
 const isExp=i=>i.kind!=='ingreso'&&i.kind!=='transferencia';
 // las devoluciones restan del gasto de su categoría
 const amt=i=>i.kind==='devolucion'?-i.monto:i.monto;
@@ -835,8 +896,8 @@ const dstr=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const now=()=>new Date();
 const todayStr=()=>dstr(now());
 const curKey=()=>todayStr().slice(0,7);
-const defaultAcc=()=>({id:'compartamos',nombre:'Ahorro principal',tipo:'Ahorro',saldo:20000,trea:4.6,desde:curKey(),conf:{}});
-const DEFAULT_STATE=()=>({v:6,cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
+const defaultAcc=()=>({id:'compartamos',nombre:'Ahorro principal',tipo:'Ahorro',base:{fecha:dstr(new Date(Date.now()-864e5)),saldo:20000,ts:Date.now()},trea:4.6,desde:curKey(),conf:{}});
+const DEFAULT_STATE=()=>({v:8,cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
 
 // ---------- estado ----------
 function migrate(s){
@@ -871,6 +932,20 @@ function migrate(s){
       if(!ids.has(c.id)){a.saldo=Math.round(((Number(a.saldo)||0)-c.monto)*100)/100;delete a.conf[k];}
       else{const it=s.items.find(i=>i.id===c.id);it.acc=a.id;it.sav=true;c.sum=true;}});});
     s.v=6;
+  }
+  if(s.v<7){
+    (s.ahorros||[]).forEach(a=>{
+      const its=s.items.filter(i=>i.acc===a.id&&i&&(i.kind==='devolucion'||i.kind==='transferencia'||i.sav));
+      const tot=its.reduce((x,i)=>x+(i.kind==='transferencia'?(i.dir==='deposito'?i.monto:-i.monto):i.monto),0);
+      const first=its.map(i=>i.fecha).sort()[0]||dstr(new Date());
+      a.base={fecha:dstr(new Date(new Date(first+'T12:00').getTime()-864e5)),saldo:Math.round(((Number(a.saldo)||0)-tot)*100)/100,ts:Date.now()};
+      delete a.saldo;
+    });
+    s.v=7;
+  }
+  if(s.v<8){ // la TREA real es 4.6%: deshace el cambio a 4.9% de la versión anterior
+    (s.ahorros||[]).forEach(a=>{if(a.id==='compartamos'&&Number(a.trea)===4.9)a.trea=4.6;});
+    s.v=8;
   }
   return s;
 }
@@ -923,11 +998,10 @@ function runSubs(){
 }
 
 // ---------- intereses ----------
-const interestEst=(acc,k)=>(Number(acc.saldo)||0)*(Math.pow(1+(Number(acc.trea)||0)/100,daysIn(k)/360)-1);
 const confFor=(acc,k)=>{const c=acc.conf&&acc.conf[k];return c&&st.items.some(i=>i.id===c.id)?c:null;};
 function pendingInterest(){
   const prev=shiftKey(curKey(),-1);
-  return st.ahorros.filter(a=>Number(a.saldo)>0&&(a.desde||curKey())<=prev&&!confFor(a,prev)).map(a=>({a,k:prev}));
+  return st.ahorros.filter(a=>accSaldo(a)>0&&(a.desde||curKey())<=prev&&!confFor(a,prev)).map(a=>({a,k:prev}));
 }
 
 // ---------- cálculos ----------
@@ -991,7 +1065,7 @@ function openReg(id){
   const it=id?st.items.find(x=>x.id===id):null;
   reg={kind:it?it.kind||'gasto':'gasto',cat:it?it.cat:null,tipo:it&&it.tipo?it.tipo:'variable',editId:it?it.id:null,showMore:false,
        medio:it&&it.kind==='gasto'&&it.medio?it.medio:(st.lastMedio||'VISA'),medioTouched:!!it,
-       dir:it&&it.dir||'retiro',acc:it&&it.kind==='transferencia'?it.acc:((st.ahorros[0]||{}).id||''),
+       dir:it&&it.dir||'retiro',motivo:it&&it.motivo||'',acc:it&&it.kind==='transferencia'?it.acc:((st.ahorros[0]||{}).id||''),
        cur:it&&it.moneda==='USD'?'USD':'PEN',tc:it&&it.tc?it.tc:(st.lastTc||3.70),hogar:!!(it&&it.hogar),
        ref:it&&it.ref||'',cuenta:it&&it.kind==='devolucion'?(it.acc?'acc:'+it.acc:'BCP'):'BCP'};
   $('rMonto').value=it?(it.moneda==='USD'?it.montoOrig:it.monto).toFixed(2):'';
@@ -1083,12 +1157,16 @@ function drawTr(){
   $('accChips').innerHTML=st.ahorros.length?st.ahorros.map(a=>`<button type="button" class="chip" data-acc="${esc(a.id)}" aria-pressed="${a.id===reg.acc}">${esc(a.nombre||'Ahorros')}</button>`).join(''):'<span class="tiphint">Agrega una cuenta en Ajustes → Ahorros e inversiones.</span>';
   $('accLbl').hidden=st.ahorros.length<2&&!!st.ahorros.length;$('accChips').hidden=st.ahorros.length===1;
   const an=esc((accById(reg.acc)||{}).nombre||'Ahorros');
+  $('motSec').hidden=reg.dir!=='retiro';
+  $('motChips').innerHTML=MOTIVOS.map(m=>`<button type="button" class="chip" data-mot="${esc(m)}" aria-pressed="${m===reg.motivo}">${esc(m)}</button>`).join('');
   $('flowTxt').innerHTML=reg.dir==='retiro'?`<span>${an}</span><span class="ar">→</span><span>BCP</span>`:`<span>BCP</span><span class="ar">→</span><span>${an}</span>`;
 }
+const MOTIVOS=['Liquidez','Emergencia','Compra planificada','Otro'];
+$('motChips').addEventListener('click',e=>{const b=e.target.closest('[data-mot]');if(!b)return;reg.motivo=reg.motivo===b.dataset.mot?'':b.dataset.mot;drawReg();});
 $('dirSeg').addEventListener('click',e=>{const b=e.target.closest('[data-dir]');if(!b)return;reg.dir=b.dataset.dir;drawReg();});
 $('accChips').addEventListener('click',e=>{const b=e.target.closest('[data-acc]');if(!b)return;reg.acc=b.dataset.acc;drawReg();});
 const trTitle=i=>i.dir==='deposito'?'Depósito a ahorros':'Retiro de ahorros';
-const trFlow=i=>{const an=(accById(i.acc)||{}).nombre||'Ahorros';return i.dir==='deposito'?`BCP → ${an}`:`${an} → BCP`;};
+const trFlow=i=>{const an=(accById(i.acc)||{}).nombre||'Ahorros';return (i.dir==='deposito'?`BCP → ${an}`:`${an} → BCP`)+(i.motivo?` · ${i.motivo}`:'');};
 function syncDate(){
   const v=$('rFecha').value,t=todayStr(),y=dstr(new Date(now().getTime()-864e5));
   $('dateTxt').textContent=v===t?'Hoy':v===y?'Ayer':new Date(v+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'});
@@ -1123,7 +1201,7 @@ $('rSave').addEventListener('click',()=>{
   if(reg.kind==='transferencia'){
     if(!reg.acc){bad('Primero agrega una cuenta de ahorro en Ajustes');return;}
     const a=accById(reg.acc),prev=reg.editId&&st.items.find(x=>x.id===reg.editId);
-    const avail=(Number(a.saldo)||0)+(prev&&prev.kind==='transferencia'&&prev.acc===a.id?-savDelta(prev):0);
+    const avail=accSaldo(a,prev?prev.id:null);
     if(reg.dir==='retiro'&&monto>avail+0.001){bad('El monto supera el saldo de esa cuenta');return;}
   }else if(!reg.cat){reg.kind==='ingreso'?bad('Elige el tipo de ingreso',$('subChips')):bad('Elige una categoría',$('mainChips'));$('rBody').scrollTop=0;return;}
   let tc=0;
@@ -1131,7 +1209,7 @@ $('rSave').addEventListener('click',()=>{
   const data={kind:reg.kind,fecha:$('rFecha').value||todayStr(),monto:Math.round(monto*(tc||1)*100)/100,cat:reg.cat,nota:$('rNota').value.trim().slice(0,80)};
   if(tc){data.moneda='USD';data.montoOrig=Math.round(monto*100)/100;data.tc=tc;st.lastTc=tc;}
   if(reg.kind==='gasto'&&reg.hogar)data.hogar=true;
-  if(reg.kind==='transferencia'){delete data.cat;data.dir=reg.dir;data.acc=reg.acc;data.medio='BCP';}
+  if(reg.kind==='transferencia'){delete data.cat;data.dir=reg.dir;data.acc=reg.acc;data.medio='BCP';if(reg.dir==='retiro'&&reg.motivo)data.motivo=reg.motivo;}
   if(reg.kind==='gasto'){data.tipo=reg.tipo;data.medio=reg.medio;if(reg.tipo==='variable'&&MEDIOS.includes(reg.medio))st.lastMedio=reg.medio;}
   if(reg.kind==='devolucion'){const r=reg.ref&&st.items.find(i=>i.id===reg.ref);
     data.tipo=r?r.tipo||'variable':(catById(reg.cat).tipo||'variable');if(r){data.ref=r.id;if(r.hogar)data.hogar=true;}
@@ -1139,7 +1217,7 @@ $('rSave').addEventListener('click',()=>{
   let item;
   if(reg.editId){item=st.items.find(x=>x.id===reg.editId);if(!item)return closeReg();
     const keep=item.kind==='ingreso'&&item.acc?{acc:item.acc,sav:item.sav}:null;
-    applySav(item,-1);['tipo','medio','ref','acc','sav','dir','cat','moneda','montoOrig','tc','hogar'].forEach(f=>delete item[f]);Object.assign(item,data);
+    applySav(item,-1);['tipo','medio','ref','acc','sav','dir','cat','moneda','montoOrig','tc','hogar','motivo'].forEach(f=>delete item[f]);Object.assign(item,data);
     if(keep&&item.kind==='ingreso'&&item.cat==='intereses')Object.assign(item,keep);
     applySav(item,1);
     st.ahorros.forEach(a=>Object.values(a.conf||{}).forEach(c=>{if(c.id===item.id)c.monto=item.kind==='ingreso'&&item.cat==='intereses'?item.monto:c.monto;}));}
@@ -1211,12 +1289,12 @@ function renderRes(){
     activeAlerts(k).map(({c,s})=>`<div class="alert ${s.level}"><span class="dot"></span><div><b>${esc(c.emoji)} ${esc(c.nombre)}:</b> ${esc(s.text)}</div></div>`).join('');
   const lb=st.lastBackup,days=lb?Math.floor((Date.now()-lb)/864e5):null;
   $('backupBanner').innerHTML=st.items.length>=15&&(days===null||days>30)?`<div class="banner">${days===null?'Aún no has hecho un respaldo.':`Tu último respaldo fue hace ${days} días.`} Hazlo en Ajustes → Respaldo.</div>`:'';
-  renderDonut();renderBudgets();renderSavings();renderSim();
+  renderDonut();renderHist();renderBudgets();renderSavings();renderSim();
 }
 $('alerts').addEventListener('click',e=>{const b=e.target.closest('[data-goint]');if(!b)return;viewKey=b.dataset.goint;openVerify=null;renderRes();
   const acc=pendingInterestFor(viewKey)[0];if(acc){openVerify=acc.id;renderSavings();}
   $('savCard').scrollIntoView({behavior:'smooth',block:'start'});});
-const pendingInterestFor=k=>st.ahorros.filter(a=>Number(a.saldo)>0&&!confFor(a,k));
+const pendingInterestFor=k=>st.ahorros.filter(a=>accSaldo(a)>0&&!confFor(a,k));
 const SIG=()=>document.documentElement.classList.contains('sig');
 function renderGreet(){
   const h=now().getHours(),g=h<12?'Buenos días':h<19?'Buenas tardes':'Buenas noches';
@@ -1273,6 +1351,31 @@ function renderDonut(){
     <text x="100" y="116" text-anchor="middle" fill="var(--ink)" font-size="20" font-weight="800">${money0(sum)}</text></svg></div>
     <ul class="legend">${(allLegend?rows:rows.slice(0,5)).map(r=>`<li class="tap" data-drill="${esc(r.c.id)}"><span class="li" style="font-size:18px;--c:${esc(r.c.color)}">${esc(r.c.emoji)}</span><span><span class="sw" style="background:${esc(r.c.color)}"></span>${esc(r.c.nombre).replace(/\//g,'/<wbr>')}</span><span class="num amtc">${money(r.v)}<small>${Math.round(r.v/sum*100)}%</small></span><span class="chev">›</span></li>`).join('')}</ul>${rows.length>5?`<button class="morebtn" type="button" data-more="legend">${allLegend?'Ver menos':`Ver todas (${rows.length})`}</button>`:''}`;
 }
+let histN=6;try{histN=+localStorage.getItem('misgastos.hist')||6;}catch(_){}
+function renderHist(){
+  document.querySelectorAll('#histSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.h===histN));
+  const ck=curKey(),first=st.items.filter(isExp).map(i=>i.fecha.slice(0,7)).sort()[0]||ck;
+  const months=[];let k=ck;while(months.length<histN){months.unshift(k);if(k<=first)break;k=shiftKey(k,-1);}
+  const data=months.map(m=>{let f=0,v=0;monthGastos(m).forEach(i=>i.tipo==='fijo'?f+=amt(i):v+=amt(i));return{m,f:Math.max(0,f),v:Math.max(0,v)};});
+  if(!data.some(d=>d.f+d.v>0)){$('histWrap').innerHTML='<div class="empty">Aún no hay gastos para comparar.</div>';return;}
+  const max=Math.max(...data.map(d=>d.f+d.v)),W=340,H=190,top=24,bot=24,n=data.length,slot=W/Math.max(n,4),bw=Math.min(40,slot*.62),x0=(W-slot*n)/2;
+  const sc=v=>v/max*(H-top-bot),short=v=>v>=1000?(Math.round(v/100)/10).toLocaleString('es-PE')+'k':Math.round(v).toString();
+  const bars=data.map((d,i)=>{const cx=x0+slot*i+slot/2,hf=sc(d.f),hv=sc(d.v),yb=H-bot,cur=d.m===ck,sel=d.m===viewKey;
+    const mon=new Date(+d.m.slice(0,4),+d.m.slice(5)-1,1).toLocaleDateString('es-PE',{month:'short'}).replace('.','');
+    return `<g class="hb" data-hm="${d.m}"><rect x="${cx-slot/2}" y="0" width="${slot}" height="${H}" fill="transparent"/>
+      ${hf?`<rect x="${cx-bw/2}" y="${yb-hf}" width="${bw}" height="${hf}" fill="var(--hf)" ${hv?'':'rx="5"'}/>`:''}
+      ${hv?`<rect x="${cx-bw/2}" y="${yb-hf-hv}" width="${bw}" height="${hv}" fill="var(--hv)" rx="5"/>${hf?`<rect x="${cx-bw/2}" y="${yb-hf-Math.min(5,hv)}" width="${bw}" height="${Math.min(5,hv)}" fill="var(--hv)"/>`:''}`:''}
+      <text x="${cx}" y="${yb-hf-hv-7}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${short(d.f+d.v)}</text>
+      <text x="${cx}" y="${H-7}" text-anchor="middle" font-size="11" font-weight="${sel?800:500}" fill="${sel?'var(--ink)':'var(--muted)'}">${esc(mon)}${cur?'*':''}</text>
+      ${sel?`<rect x="${cx-bw/2}" y="${H-3}" width="${bw}" height="3" rx="1.5" fill="var(--accent)"/>`:''}</g>`;}).join('');
+  const past=data.filter(d=>d.m<ck&&d.f+d.v>0),avg=f=>past.length?past.reduce((s,d)=>s+f(d),0)/past.length:0;
+  $('histWrap').innerHTML=`<svg class="hist" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gastos fijos y variables por mes"><line x1="0" x2="${W}" y1="${H-bot}" y2="${H-bot}" stroke="var(--line)"/>${bars}</svg>
+    <div class="hleg"><span><i style="background:var(--hf)"></i>Fijos</span><span><i style="background:var(--hv)"></i>Variables</span><span class="muted">* mes en curso · toca un mes para verlo</span></div>
+    ${past.length?`<div class="havg"><div><span>Prom. fijos</span><b class="num">${money0(avg(d=>d.f))}</b></div><div><span>Prom. variables</span><b class="num">${money0(avg(d=>d.v))}</b></div><div><span>Prom. total</span><b class="num">${money0(avg(d=>d.f+d.v))}</b></div></div>
+      <p class="note small" style="margin:6px 0 0">Promedio de ${past.length} ${past.length===1?'mes cerrado':'meses cerrados'}.</p>`:''}`;
+}
+$('histSeg').addEventListener('click',e=>{const b=e.target.closest('[data-h]');if(!b)return;histN=+b.dataset.h;try{localStorage.setItem('misgastos.hist',histN);}catch(_){}renderHist();});
+$('histWrap').addEventListener('click',e=>{const g=e.target.closest('[data-hm]');if(!g)return;viewKey=g.dataset.hm;renderRes();$('histCard').scrollIntoView({block:'nearest'});});
 function renderBudgets(){
   const k=viewKey,t=splitFor(k),av=avgFor(k);
   const all=sortCats().filter(c=>Number(c.presupuesto)>0||(t[c.id]&&(t[c.id].f+t[c.id].v)>0));
@@ -1314,28 +1417,57 @@ function renderSavings(){
         <div class="two"><button class="btn sec slim" type="button" data-vcancel>Cancelar</button><button class="btn slim" type="button" data-vok>Confirmar</button></div></div>`;}
     else body=`<button class="btn sec slim" type="button" data-verify="${esc(a.id)}" style="margin-top:12px">Verificar lo recibido</button>`;
     return `<div class="acc">${multi?`<b>${esc(a.nombre)}</b>`:''}
-      <div class="kv"><span>Saldo</span><span class="num ${hideMoney?'masked':''}">${hideMoney?MASK:money(Number(a.saldo)||0)}</span>
+      ${(()=>{const ic=interestCalc(a,k),m=v=>hideMoney?MASK:money(v),endBal=k===curKey()?accSaldo(a):balAt(a,`${k}-${pad(daysIn(k))}`);
+        return `<div class="kv"><span>${k===curKey()?'Saldo hoy':'Saldo al cierre de '+esc(monthOnly(k))}</span><span class="num ${hideMoney?'masked':''}">${m(endBal)}</span>
         <span>TREA</span><span class="num">${fmt(Number(a.trea)||0,2)}%</span>
-        <span>Interés estimado de ${esc(monthOnly(k))} (${daysIn(k)} días)</span><span class="num em ${hideMoney?'masked':''}">${hideMoney?MASK:money(est)}</span></div>${savMoves(a,k)}${body}</div>`;
-  }).join('')+interestChart()+`<p class="note small" style="margin:10px 0 0">Estimado con base de 360 días, como calculan los bancos en Perú. Solo se suma como ingreso cuando confirmas el monto real.</p>`;
+        ${ic.isCur?`<span>Interés ganado hasta hoy</span><span class="num ${hideMoney?'masked':''}">${m(ic.toDate)}</span>`:''}
+        <span>Interés ${ic.isCur?'proyectado a fin de mes':'de '+esc(monthOnly(k))}</span><span class="num em ${hideMoney?'masked':''}">${m(ic.total)}</span></div>
+        <button class="detbtn" type="button" data-det="${esc(a.id)}">${openDet===a.id?'Ocultar':'Ver'} cálculo y estado de cuenta ${openDet===a.id?'▴':'▾'}</button>
+        ${openDet===a.id?accDetail(a,k,ic):''}`;})()}${savMoves(a,k)}${body}</div>`;
+  }).join('')+interestChart()+`<p class="note small" style="margin:10px 0 0">Interés calculado sobre el saldo de cada día, en base 360 como calculan los bancos en Perú. Solo se suma como ingreso cuando confirmas el monto real.</p>`;
+}
+let openDet=null;
+const dayLbl=(k,d)=>`${d} ${new Date(+k.slice(0,4),+k.slice(5)-1,1).toLocaleDateString('es-PE',{month:'short'}).replace('.','')}`;
+function accDetail(a,k,ic){
+  const m=v=>hideMoney?MASK:money(v),dim=daysIn(k);
+  const segs=ic.segs.map(g=>`<tr class="${g.proj?'proj':''}"><td>${g.from===g.to?dayLbl(k,g.from):`${g.from}–${dayLbl(k,g.to)}`}</td><td class="num">${m(g.bal)}</td><td class="num">${g.days}</td><td class="num">${hideMoney?'••':money(g.int)}</td></tr>`).join('');
+  const startBal=balAt(a,dayBefore(`${k}-01`));
+  const paid=(a.conf||{})[k],skip=paid?paid.id:null;
+  const its=accItems(a).filter(i=>i.fecha.slice(0,7)===k).sort((x,y)=>x.fecha<y.fecha?-1:x.fecha>y.fecha?1:(x.ts||0)-(y.ts||0));
+  let run=startBal;
+  const concept=i=>i.kind==='transferencia'?(i.dir==='deposito'?'Depósito desde BCP':'Retiro a BCP'+(i.motivo?` · ${i.motivo}`:'')):i.kind==='devolucion'?'Devolución':'Intereses';
+  const rows=its.map(i=>{const dl=savDelta(i);run=r2(run+dl);
+    return `<tr><td>${dayLbl(k,+i.fecha.slice(8))}</td><td>${esc(concept(i))}${i.nota&&i.kind!=='ingreso'?`<small>${esc(i.nota)}</small>`:''}</td><td class="num ${dl>=0?'pos':'neg'}">${dl>=0?'+':'−'} ${m(Math.abs(dl))}</td><td class="num">${m(run)}</td></tr>`;}).join('');
+  return `<div class="accdet">
+    <div class="lbl">Cálculo del interés · saldo diario</div>
+    <p class="note small">Tasa diaria ${(ic.rd*100).toFixed(4)}% (TREA ${fmt(Number(a.trea)||0,2)}% en base 360). Cada tramo gana interés por los días que el saldo estuvo en la cuenta${ic.isCur?'; los días que faltan del mes se proyectan con el saldo de hoy':''}.</p>
+    <div class="tw"><table class="dt"><thead><tr><th>Días</th><th class="num">Saldo</th><th class="num">Días</th><th class="num">Interés</th></tr></thead><tbody>${segs}</tbody>
+      <tfoot><tr><td colspan="2">Total ${ic.isCur?'proyectado':'del mes'}</td><td class="num">${dim}</td><td class="num">${hideMoney?'••':money(ic.total)}</td></tr></tfoot></table></div>
+    <div class="lbl" style="margin-top:14px">Estado de cuenta de ${esc(monthOnly(k))}</div>
+    <div class="tw"><table class="dt"><tbody><tr class="sub"><td colspan="3">Saldo al cierre del mes anterior</td><td class="num">${m(startBal)}</td></tr>${rows||`<tr><td colspan="4" class="muted">Sin movimientos este mes.</td></tr>`}
+      <tr class="sub"><td colspan="3">${k===curKey()?'Saldo hoy':'Saldo al cierre'}</td><td class="num"><b>${m(run)}</b></td></tr></tbody></table></div>
+  </div>`;
 }
 function savMoves(a,k){
   const its=monthItems(k).filter(i=>i.acc===a.id&&affectsSav(i));
-  if(!its.length)return '';
+  if(!its.length&&!accItems(a).some(i=>i.kind==='transferencia'&&i.dir==='retiro'&&i.fecha.slice(0,4)===k.slice(0,4)))return '';
   const sumOf=f=>its.filter(f).reduce((s,i)=>s+i.monto,0);
   const rows=[['Intereses',sumOf(i=>i.kind==='ingreso'),1],['Devoluciones',sumOf(i=>i.kind==='devolucion'),1],
     ['Depósitos desde BCP',sumOf(i=>i.kind==='transferencia'&&i.dir==='deposito'),1],['Retiros a BCP',sumOf(i=>i.kind==='transferencia'&&i.dir==='retiro'),-1]].filter(r=>r[1]);
   const net=its.reduce((s,i)=>s+savDelta(i),0);
   const m=v=>hideMoney?MASK:money(v);
+  const yr=k.slice(0,4),ret=accItems(a).filter(i=>i.kind==='transferencia'&&i.dir==='retiro'&&i.fecha.slice(0,4)===yr);
+  const byMot={};ret.forEach(i=>{const x=i.motivo||'Sin motivo';byMot[x]=(byMot[x]||0)+i.monto;});
+  const yrTxt=ret.length?`<span class="h" style="margin-top:8px">Retiros en ${yr} por motivo</span>${Object.entries(byMot).sort((x,y)=>y[1]-x[1]).map(([x,v])=>`<span>${esc(x)}</span><span class="num neg">− ${m(v)}</span>`).join('')}`:'';
   return `<div class="savmv"><span class="h">Movimientos de ${esc(monthOnly(k))}</span>${rows.map(([l,v,sg])=>`<span>${l}</span><span class="num ${sg>0?'pos':'neg'}">${sg>0?'+':'−'} ${m(v)}</span>`).join('')}
-    <span><b>Variación del mes</b></span><span class="num"><b>${net>=0?'+':'−'} ${m(Math.abs(net))}</b></span></div>
+    <span><b>Variación del mes</b></span><span class="num"><b>${net>=0?'+':'−'} ${m(Math.abs(net))}</b></span>${yrTxt}</div>
     <button class="btn sec slim savlink" type="button" data-savmovs="${esc(a.id)}">Ver movimientos de la cuenta</button>`;
 }
 function interestChart(){
   const ck=curKey();let start=ck;
   st.ahorros.forEach(a=>{if(a.desde&&a.desde<start)start=a.desde;Object.keys(a.conf||{}).forEach(m=>{if(m<start)start=m;});});
   const months=[];let k=ck;while(months.length<12){months.unshift(k);if(k<=start)break;k=shiftKey(k,-1);}
-  const data=months.map(m=>{let rec=0,est=0,has=false;st.ahorros.forEach(a=>{const c=confFor(a,m);if(c){rec+=c.monto;has=true;}else if(Number(a.saldo)>0&&(a.desde||ck)<=m)est+=interestEst(a,m);});return{m,rec,est:has?0:est,has};});
+  const data=months.map(m=>{let rec=0,est=0,has=false;st.ahorros.forEach(a=>{const c=confFor(a,m);if(c){rec+=c.monto;has=true;}else if(accSaldo(a)>0&&(a.desde||ck)<=m)est+=interestEst(a,m);});return{m,rec,est:has?0:est,has};});
   const max=Math.max(1,...data.map(d=>Math.max(d.rec,d.est)));
   const W=320,H=150,top=22,bot=22,n=data.length,slot=W/Math.max(n,6),bw=Math.min(34,slot*.62);
   const x0=(W-slot*n)/2;
@@ -1351,6 +1483,7 @@ function interestChart(){
     <div class="leg"><span><i style="background:var(--accent)"></i>Recibido (confirmado)</span><span><i style="background:var(--accent);opacity:.3"></i>Estimado, sin confirmar</span></div></div>`;
 }
 $('savings').addEventListener('click',e=>{
+  const dt=e.target.closest('[data-det]');if(dt){openDet=openDet===dt.dataset.det?null:dt.dataset.det;renderSavings();return;}
   const sm=e.target.closest('[data-savmovs]');if(sm){mf={mode:'mes',cats:[],medios:['acc:'+sm.dataset.savmovs],monedas:[],tipos:[],desde:mf.desde,hasta:mf.hasta};go('movs');return;}
   const v=e.target.closest('[data-verify]');if(v){openVerify=v.dataset.verify;renderSavings();const i=$('vMonto-'+openVerify);i&&i.focus();return;}
   if(e.target.closest('[data-vcancel]')){openVerify=null;renderSavings();return;}
@@ -1560,17 +1693,28 @@ function drawAccs(){
     <button class="rm" type="button" data-arm="${i}" aria-label="Quitar cuenta">×</button>
     <div class="sub">
       <label>Tipo<select id="ay-${esc(a.id)}" data-ak="tipo">${['Ahorro','Depósito a plazo','Fondo mutuo','Otro'].map(t=>`<option${a.tipo===t?' selected':''}>${t}</option>`).join('')}</select></label>
-      <label>Saldo (S/)<input id="as-${esc(a.id)}" data-ak="saldo" inputmode="decimal" value="${a.saldo}"></label>
       <label>TREA (%)<input id="at-${esc(a.id)}" data-ak="trea" inputmode="decimal" value="${a.trea}"></label>
+      <span></span>
+      <label>Saldo inicial (S/)<input id="as-${esc(a.id)}" data-ak="bsaldo" inputmode="decimal" value="${(a.base||{}).saldo??0}"></label>
+      <label>Al cierre del<input id="ad-${esc(a.id)}" data-ak="bfecha" type="date" value="${esc((a.base||{}).fecha||todayStr())}" max="${todayStr()}"></label>
+      <span></span>
+      <div class="full note small" id="ah-${esc(a.id)}">Saldo hoy (calculado): <b>${money(accSaldo(a))}</b></div>
     </div></div>`).join('')||'<p class="note small" style="margin:8px 0">Sin cuentas registradas.</p>';
 }
 $('accEdit').addEventListener('input',e=>{const r=e.target.closest('[data-ai]');if(!r||!e.target.dataset.ak)return;const a=st.ahorros[r.dataset.ai],k=e.target.dataset.ak;
-  a[k]=k==='nombre'||k==='tipo'?e.target.value:(parseNum(e.target.value)||0);autosave();});
-$('accEdit').addEventListener('change',e=>{const r=e.target.closest('[data-ai]');if(!r||e.target.dataset.ak!=='tipo')return;st.ahorros[r.dataset.ai].tipo=e.target.value;autosave();});
+  a.base=a.base||{fecha:todayStr(),saldo:0};
+  if(k==='bsaldo'){a.base.saldo=parseNum(e.target.value)||0;a.base.ts=Date.now();}
+  else if(k==='bfecha'){if(e.target.value){a.base.fecha=e.target.value;a.base.ts=Date.now();}}
+  else a[k]=k==='nombre'||k==='tipo'?e.target.value:(parseNum(e.target.value)||0);
+  const h=$('ah-'+a.id);if(h)h.innerHTML=`Saldo hoy (calculado): <b>${money(accSaldo(a))}</b>`;
+  autosave();});
+$('accEdit').addEventListener('change',e=>{const r=e.target.closest('[data-ai]');if(!r)return;const a=st.ahorros[r.dataset.ai];
+  if(e.target.dataset.ak==='tipo')a.tipo=e.target.value;else if(e.target.dataset.ak==='bfecha'&&e.target.value){a.base.fecha=e.target.value;a.base.ts=Date.now();}else return;
+  const h=$('ah-'+a.id);if(h)h.innerHTML=`Saldo hoy (calculado): <b>${money(accSaldo(a))}</b>`;autosave();});
 $('accEdit').addEventListener('click',e=>{const b=e.target.closest('[data-arm]');if(!b)return;
   if(!b.classList.contains('confirm')){b.classList.add('confirm');b.textContent='¿Sí?';return;}
   st.ahorros.splice(b.dataset.arm,1);save();drawAccs();});
-$('addAcc').onclick=()=>{st.ahorros.push({id:'a'+Date.now().toString(36),nombre:'Nueva cuenta',tipo:'Ahorro',saldo:0,trea:0,desde:curKey(),conf:{}});save();drawAccs();
+$('addAcc').onclick=()=>{st.ahorros.push({id:'a'+Date.now().toString(36),nombre:'Nueva cuenta',tipo:'Ahorro',base:{fecha:todayStr(),saldo:0,ts:Date.now()},trea:0,desde:curKey(),conf:{}});save();drawAccs();
   const n=$('accEdit').querySelector('.crow:last-child .nm');n&&(n.focus(),n.select());};
 
 // categorías
