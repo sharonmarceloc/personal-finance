@@ -1358,16 +1358,17 @@ function renderHist(){
   const months=[];let k=ck;while(months.length<histN){months.unshift(k);if(k<=first)break;k=shiftKey(k,-1);}
   const data=months.map(m=>{let f=0,v=0;monthGastos(m).forEach(i=>i.tipo==='fijo'?f+=amt(i):v+=amt(i));return{m,f:Math.max(0,f),v:Math.max(0,v)};});
   if(!data.some(d=>d.f+d.v>0)){$('histWrap').innerHTML='<div class="empty">Aún no hay gastos para comparar.</div>';return;}
-  const max=Math.max(...data.map(d=>d.f+d.v)),W=340,H=190,top=24,bot=24,n=data.length,slot=W/Math.max(n,4),bw=Math.min(40,slot*.62),x0=(W-slot*n)/2;
+  const max=Math.max(...data.map(d=>Math.max(d.f,d.v))),W=340,H=200,top=26,bot=24,n=data.length,slot=W/Math.max(n,4),gap=2,bw=Math.min(20,(slot*.78-gap)/2),x0=(W-slot*n)/2;
   const sc=v=>v/max*(H-top-bot),short=v=>v>=1000?(Math.round(v/100)/10).toLocaleString('es-PE')+'k':Math.round(v).toString();
-  const bars=data.map((d,i)=>{const cx=x0+slot*i+slot/2,hf=sc(d.f),hv=sc(d.v),yb=H-bot,cur=d.m===ck,sel=d.m===viewKey;
+  const showVals=n<=6;
+  const bars=data.map((d,i)=>{const cx=x0+slot*i+slot/2,yb=H-bot,cur=d.m===ck,sel=d.m===viewKey,lab=showVals||sel;
     const mon=new Date(+d.m.slice(0,4),+d.m.slice(5)-1,1).toLocaleDateString('es-PE',{month:'short'}).replace('.','');
+    const bar=(v,x,col)=>{const h=sc(v);return (h>0?`<rect x="${x}" y="${yb-h}" width="${bw}" height="${h}" rx="${Math.min(4,bw/2)}" fill="${col}"/>`:'')+
+      (lab&&v>0?`<text x="${x+bw/2}" y="${yb-h-5}" text-anchor="middle" font-size="${showVals?10:9}" font-weight="700" fill="var(--ink)">${short(v)}</text>`:'');};
     return `<g class="hb" data-hm="${d.m}"><rect x="${cx-slot/2}" y="0" width="${slot}" height="${H}" fill="transparent"/>
-      ${hf?`<rect x="${cx-bw/2}" y="${yb-hf}" width="${bw}" height="${hf}" fill="var(--hf)" ${hv?'':'rx="5"'}/>`:''}
-      ${hv?`<rect x="${cx-bw/2}" y="${yb-hf-hv}" width="${bw}" height="${hv}" fill="var(--hv)" rx="5"/>${hf?`<rect x="${cx-bw/2}" y="${yb-hf-Math.min(5,hv)}" width="${bw}" height="${Math.min(5,hv)}" fill="var(--hv)"/>`:''}`:''}
-      <text x="${cx}" y="${yb-hf-hv-7}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${short(d.f+d.v)}</text>
+      ${bar(d.f,cx-gap/2-bw,'var(--hf)')}${bar(d.v,cx+gap/2,'var(--hv)')}
       <text x="${cx}" y="${H-7}" text-anchor="middle" font-size="11" font-weight="${sel?800:500}" fill="${sel?'var(--ink)':'var(--muted)'}">${esc(mon)}${cur?'*':''}</text>
-      ${sel?`<rect x="${cx-bw/2}" y="${H-3}" width="${bw}" height="3" rx="1.5" fill="var(--accent)"/>`:''}</g>`;}).join('');
+      ${sel?`<rect x="${cx-bw-gap/2}" y="${H-3}" width="${bw*2+gap}" height="3" rx="1.5" fill="var(--accent)"/>`:''}</g>`;}).join('');
   const past=data.filter(d=>d.m<ck&&d.f+d.v>0),avg=f=>past.length?past.reduce((s,d)=>s+f(d),0)/past.length:0;
   $('histWrap').innerHTML=`<svg class="hist" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gastos fijos y variables por mes"><line x1="0" x2="${W}" y1="${H-bot}" y2="${H-bot}" stroke="var(--line)"/>${bars}</svg>
     <div class="hleg"><span><i style="background:var(--hf)"></i>Fijos</span><span><i style="background:var(--hv)"></i>Variables</span><span class="muted">* mes en curso · toca un mes para verlo</span></div>
