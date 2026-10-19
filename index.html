@@ -1005,7 +1005,10 @@ function pendingInterest(){
 }
 
 // ---------- cálculos ----------
-const monthItems=k=>st.items.filter(i=>i.fecha.slice(0,7)===k);
+// Una devolución vinculada netea en la fecha del gasto original; el dinero cuenta en su fecha real (i.fecha).
+const spendDate=i=>{if(i.kind==='devolucion'&&i.ref){const r=st.items.find(x=>x.id===i.ref);if(r)return r.fecha;}return i.fecha;};
+const monthItems=k=>st.items.filter(i=>spendDate(i).slice(0,7)===k);
+const moneyMonthItems=k=>st.items.filter(i=>i.fecha.slice(0,7)===k);
 const monthGastos=k=>monthItems(k).filter(isExp);
 function splitFor(k){const t={};monthGastos(k).forEach(i=>{const o=t[i.cat]||(t[i.cat]={f:0,v:0});i.tipo==='fijo'?o.f+=amt(i):o.v+=amt(i);});return t;}
 function totalsFor(k){const t={};Object.entries(splitFor(k)).forEach(([c,o])=>t[c]=o.f+o.v);return t;}
@@ -1014,15 +1017,15 @@ function incomeFor(k){
   const est=sueldo===0;return{total:(est?Number(st.cfg.ingreso)||0:sueldo)+otros,est};
 }
 function avgFor(k){
-  const ks=[...new Set(st.items.filter(isExp).map(i=>i.fecha.slice(0,7)))].filter(x=>x<k).sort().reverse().slice(0,3);
+  const ks=[...new Set(st.items.filter(isExp).map(i=>spendDate(i).slice(0,7)))].filter(x=>x<k).sort().reverse().slice(0,3);
   const per={};let total=0;
   ks.forEach(m=>Object.entries(totalsFor(m)).forEach(([c,v])=>{per[c]=(per[c]||0)+v;total+=v;}));
   Object.keys(per).forEach(c=>per[c]/=ks.length||1);
   return{per,total:ks.length?total/ks.length:null,n:ks.length};
 }
 function crossingDay(k,cat,lim){
-  const its=monthGastos(k).filter(i=>i.cat===cat).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:(a.ts||0)-(b.ts||0));
-  let acc=0;for(const i of its){acc+=amt(i);if(acc>=lim-0.001)return Number(i.fecha.slice(8,10));}return null;
+  const its=monthGastos(k).filter(i=>i.cat===cat).sort((a,b)=>spendDate(a)<spendDate(b)?-1:spendDate(a)>spendDate(b)?1:(a.ts||0)-(b.ts||0));
+  let acc=0;for(const i of its){acc+=amt(i);if(acc>=lim-0.001)return Number(spendDate(i).slice(8,10));}return null;
 }
 // referencia del día: lo fijo cuenta completo; el resto del presupuesto se reparte por días
 function paceRef(k,c,f){
@@ -1129,7 +1132,8 @@ function drawDev(){
   const r=reg.ref&&st.items.find(i=>i.id===reg.ref);
   $('refTxt').textContent=r?refLabel(r):(reg.cat?(opts.length?'Sin vincular':'No hay gastos recientes en esta categoría'):'Primero elige la categoría');
   if(r){const dev=st.items.filter(i=>i.kind==='devolucion'&&i.ref===r.id&&i.id!==reg.editId).reduce((s,i)=>s+i.monto,0);
-    $('refHint').textContent=dev?`Ya te devolvieron ${money(dev)} de este gasto.`:'El gasto original se mantiene; la devolución lo netea.';}
+    const fd=d=>new Date(d+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'}).replace(/\.$/,'');
+    $('refHint').textContent=(dev?`Ya te devolvieron ${money(dev)} de este gasto. `:'')+`Se descuenta del gasto del ${fd(r.fecha)}. En "Fecha" pon el día en que te pagaron.`;}
   else $('refHint').textContent='Vincúlalo al gasto original para ver cuánto te costó realmente.';
   const dests=[['BCP','BCP','suma a tu disponible']].concat(st.ahorros.map(a=>['acc:'+a.id,a.nombre||'Ahorros','suma a tus ahorros']));
   if(!dests.some(d=>d[0]===reg.cuenta))reg.cuenta='BCP';
@@ -1303,7 +1307,7 @@ function renderGreet(){
 function sparkSVG(k){
   if(k!==curKey())return'';
   const dim=daysIn(k),day=now().getDate(),daily=new Array(dim+1).fill(0);
-  monthGastos(k).forEach(i=>{if(i.tipo!=='fijo')daily[+i.fecha.slice(8,10)]+=amt(i);});
+  monthGastos(k).forEach(i=>{if(i.tipo!=='fijo')daily[+spendDate(i).slice(8,10)]+=amt(i);});
   const cum=[0];for(let d=1;d<=dim;d++)cum[d]=cum[d-1]+daily[d];
   const budget=st.cfg.categorias.filter(c=>c.tipo==='variable').reduce((s,c)=>s+(Number(c.presupuesto)||0),0)||cum[day]||1;
   const max=Math.max(budget,cum[day])*1.05,W=300,H=56,x=d=>d/dim*W,y=v=>H-2-v/max*(H-6);
@@ -1354,7 +1358,7 @@ function renderDonut(){
 let histN=6;try{histN=+localStorage.getItem('misgastos.hist')||6;}catch(_){}
 function renderHist(){
   document.querySelectorAll('#histSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.h===histN));
-  const ck=curKey(),first=st.items.filter(isExp).map(i=>i.fecha.slice(0,7)).sort()[0]||ck;
+  const ck=curKey(),first=st.items.filter(isExp).map(i=>spendDate(i).slice(0,7)).sort()[0]||ck;
   const months=[];let k=ck;while(months.length<histN){months.unshift(k);if(k<=first)break;k=shiftKey(k,-1);}
   const data=months.map(m=>{let f=0,v=0;monthGastos(m).forEach(i=>i.tipo==='fijo'?f+=amt(i):v+=amt(i));return{m,f:Math.max(0,f),v:Math.max(0,v)};});
   if(!data.some(d=>d.f+d.v>0)){$('histWrap').innerHTML='<div class="empty">Aún no hay gastos para comparar.</div>';return;}
@@ -1450,7 +1454,7 @@ function accDetail(a,k,ic){
   </div>`;
 }
 function savMoves(a,k){
-  const its=monthItems(k).filter(i=>i.acc===a.id&&affectsSav(i));
+  const its=moneyMonthItems(k).filter(i=>i.acc===a.id&&affectsSav(i));
   if(!its.length&&!accItems(a).some(i=>i.kind==='transferencia'&&i.dir==='retiro'&&i.fecha.slice(0,4)===k.slice(0,4)))return '';
   const sumOf=f=>its.filter(f).reduce((s,i)=>s+i.monto,0);
   const rows=[['Intereses',sumOf(i=>i.kind==='ingreso'),1],['Devoluciones',sumOf(i=>i.kind==='devolucion'),1],
@@ -1569,7 +1573,7 @@ function renderMovs(){
   const wasHidden=$('fClear').hidden;$('fClear').hidden=!nAct;$('fClear').textContent=`✕ Quitar filtros (${nAct})`;
   if(nAct&&wasHidden)$('fbar').scrollLeft=0;
   const one=mf.cats.length===1?mf.cats[0].split(':'):['',''],ck=one[0],cid=one[1];
-  const inPeriod=i=>isMes?i.fecha.slice(0,7)===viewKey:(i.fecha>=mf.desde&&i.fecha<=mf.hasta);
+  const inPeriod=i=>{const f=spendDate(i);return isMes?f.slice(0,7)===viewKey:(f>=mf.desde&&f<=mf.hasta);};
   // dentro de cada filtro: cualquiera de lo elegido; entre filtros: todos a la vez
   const match=i=>{
     const tr=i.kind==='transferencia';
@@ -1578,7 +1582,7 @@ function renderMovs(){
     if(mf.monedas.length&&!mf.monedas.includes(i.moneda||'PEN'))return false;
     if(mf.tipos.length&&!mf.tipos.some(t=>tipoMatch(i,t)))return false;
     return true;};
-  const its=st.items.filter(i=>inPeriod(i)&&match(i)).sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:(b.ts||0)-(a.ts||0));
+  const its=st.items.filter(i=>inPeriod(i)&&match(i)).sort((a,b)=>spendDate(a)<spendDate(b)?1:spendDate(a)>spendDate(b)?-1:(b.ts||0)-(a.ts||0));
   const g=its.filter(isExp).reduce((s,i)=>s+amt(i),0),inc=its.filter(i=>i.kind==='ingreso').reduce((s,i)=>s+i.monto,0);
   const dev=its.filter(i=>i.kind==='devolucion').reduce((s,i)=>s+i.monto,0);
   // resumen del filtro
@@ -1608,7 +1612,7 @@ function renderMovs(){
       <div class="nums">${n.join('')}</div>${lim?`<div class="bar"><i class="${g>lim?'crit':g/lim>=.8?'warn':''}" style="width:${Math.min(100,g/lim*100)}%"></i></div>`:''}</div>`;
   }
   if(!its.length){$('movList').innerHTML=head+`<div class="empty">No hay movimientos ${filtered?'con estos filtros ':''}${isMes?'en este mes':'en estas fechas'}.</div>`;return;}
-  const by={};its.forEach(i=>(by[i.fecha]=by[i.fecha]||[]).push(i));
+  const by={};its.forEach(i=>{const f=spendDate(i);(by[f]=by[f]||[]).push(i);});
   const multiYear=!isMes&&mf.desde.slice(0,4)!==mf.hasta.slice(0,4);
   $('movList').innerHTML=head+(filtered||!isMes?'':`<div class="sumline">${g?`<span>Gastos <b class="num">${money(g)}</b></span>`:''}<span>Toca uno para editarlo</span></div>`)+
     Object.keys(by).map(d=>{const l=by[d];const net=l.reduce((s,i)=>s+(isExp(i)?amt(i):0),0);
@@ -1618,9 +1622,9 @@ function renderMovs(){
         const isInc=i.kind==='ingreso',isDev=i.kind==='devolucion',c=isInc?incById(i.cat):catById(i.cat);
         const rf=i.kind==='gasto'?refunded(i.id):0;
         const parts=[i.nota?c.nombre:'',(isDev?destLabel(i):medioTxt(i.medio))||(i.nota?'':c.nombre)];
-        if(isDev&&i.ref){const r=st.items.find(x=>x.id===i.ref);if(r)parts.push('de '+(r.nota||c.nombre));}
+        if(isDev&&i.ref){const r=st.items.find(x=>x.id===i.ref);if(r){parts.push('de '+(r.nota||c.nombre));if(r.fecha!==i.fecha)parts.push('recibido el '+new Date(i.fecha+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'}));}}
         const sub=parts.filter(Boolean).map(esc).join(' · ')+(rf?` · <span class="net">Neto ${money(i.monto-rf)}</span>`:'');
-        return `<button class="mv${isInc?' inc':''}${isDev?' dev':''}" data-id="${esc(i.id)}" type="button"><span class="ic" style="--c:${isInc||isDev?'var(--income)':esc(c.color)}">${esc(isDev?'↩':c.emoji)}</span><span class="d"><div>${esc(i.nota||(isDev?'Devolución':c.nombre))}${isDev?'<span class="ftag dev">Devolución</span>':''}${i.hogar&&!isDev?'<span class="ftag home">Hogar</span>':''}${i.tipo==='fijo'&&!isDev?'<span class="ftag">Fijo</span>':''}${i.auto?'<span class="ftag auto">Auto</span>':''}</div><div>${sub}</div></span><span class="a num">${isInc?'+ ':isDev?'− ':''}${i.moneda==='USD'?'US$ '+fmt(i.montoOrig)+'<small>'+money(i.monto)+'</small>':money(i.monto)}</span></button>`;}).join('')}</div></div>`;}).join('');
+        return `<button class="mv${isInc?' inc':''}${isDev?' dev':''}" data-id="${esc(i.id)}" type="button"><span class="ic" style="--c:${isInc||isDev?'var(--income)':esc(c.color)}">${esc(isDev?'↩':c.emoji)}</span><span class="d"><div>${esc(i.nota||(isDev?'Devolución':c.nombre))}${isDev?'<span class="ftag dev">Devolución</span>':''}${i.hogar&&!isDev?'<span class="ftag home">Hogar</span>':''}${i.tipo==='fijo'&&!isDev?'<span class="ftag">Fijo</span>':''}${i.auto?'<span class="ftag auto">Auto</span>':''}</div><div>${sub}</div></span><span class="a num">${isInc?'+ ':isDev?'− ':''}${i.moneda==='USD'?'US$ '+fmt(i.montoOrig)+'<small>'+money(i.monto)+'</small>':money(i.monto)}${isDev?`<small>→ ${esc(i.acc?'Ahorros':'BCP')}</small>`:''}</span></button>`;}).join('')}</div></div>`;}).join('');
 }
 $('pmode').addEventListener('click',e=>{const b=e.target.closest('[data-pm]');if(!b)return;mf.mode=b.dataset.pm;renderMovs();});
 $('fClear').onclick=()=>{mf.cats=[];mf.medios=[];mf.monedas=[];mf.tipos=[];renderMovs();};
