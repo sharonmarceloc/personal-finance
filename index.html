@@ -538,6 +538,8 @@ h2{font-size:19px}
 .accsum .al small{display:block;font-weight:500;color:var(--muted);font-size:12px}
 .accsum .arow b{font-family:var(--display);font-size:16px}
 .accsum .arow b.inc{color:var(--income)}
+.alert .aref{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:13px;color:var(--muted)}
+.alert .aref b{font-weight:650;color:var(--ink)}
 .mv .a.accin{color:var(--income)}.mv .a.accout{color:var(--crit)}
 .fbrk{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line);padding-top:8px}
 .fsum .nums b.pos{color:var(--income)}
@@ -1307,7 +1309,12 @@ function renderRes(){
   renderKpi();
   const pend=k===curKey()?pendingInterest():[];
   $('alerts').innerHTML=pend.map(({a,k:pk})=>`<div class="alert info"><span class="dot"></span><div>Confirma los intereses de ${esc(monthOnly(pk))} de <b>${esc(a.nombre)}</b>. <button type="button" data-goint="${esc(pk)}">Ir a verificar</button></div></div>`).join('')+
-    activeAlerts(k).map(({c,s})=>`<div class="alert ${s.level}"><span class="dot"></span><div><b>${esc(c.emoji)} ${esc(c.nombre)}:</b> ${esc(s.text)}</div></div>`).join('');
+    (()=>{const t=splitFor(k),isCur=k===curKey(),dim=daysIn(k),day=isCur?now().getDate():dim;return activeAlerts(k).map(({c,s})=>{const o=t[c.id]||{f:0,v:0},sp=o.f+o.v,lim=Number(c.presupuesto)||0,pc=v=>Math.round(v/lim*100)+'%';
+      const proj=isCur&&day<dim&&c.tipo==='variable'?o.f+o.v/day*dim:null;
+      const crossed=sp>=lim?(s.text.match(/día (\d+)/)||[])[1]:null;
+      const main=isCur?`Es día ${day} y vas al <b>${pc(sp)}</b>.`:`Cerraste al <b>${pc(sp)}</b>.`;
+      const pr=proj!==null?` Cerrarías en <b>${money0(proj)}</b> (${pc(proj)}).`:'';
+      return `<div class="alert ${s.level}"><span class="dot"></span><div><b>${esc(c.emoji)} ${esc(c.nombre)}:</b> ${main}${pr}<div class="aref"><span>Límite <b>${money0(lim)}</b></span>${crossed?`<span>Lo alcanzaste el día ${crossed}</span>`:''}</div></div></div>`;}).join('');})();
   const lb=st.lastBackup,days=lb?Math.floor((Date.now()-lb)/864e5):null;
   $('backupBanner').innerHTML=st.items.length>=15&&(days===null||days>30)?`<div class="banner">${days===null?'Aún no has hecho un respaldo.':`Tu último respaldo fue hace ${days} días.`} Hazlo en Ajustes → Respaldo.</div>`:'';
   renderDonut();renderHist();renderBudgets();renderSavings();renderSim();
