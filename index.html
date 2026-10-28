@@ -813,7 +813,9 @@ h2{font-size:19px}
       <div class="lbl">¿De qué gasto? <span class="opt">(opcional)</span></div>
       <label class="refpick"><span id="refTxt">Sin vincular</span><span class="car">▾</span><select id="rRef" aria-label="Gasto devuelto"></select></label>
       <div class="tiphint" id="refHint">Vincúlalo al gasto original para ver cuánto te costó realmente.</div>
-      <div class="lbl" style="margin-top:6px">Recibido en</div>
+    </div>
+    <div class="rsec" id="ctaSec" hidden>
+      <div class="lbl">¿A qué cuenta entró?</div>
       <div class="chips pay" id="cuentaChips"></div>
       <div class="tiphint" id="destHint"></div>
     </div>
@@ -1089,7 +1091,7 @@ function openReg(id){
        medio:it&&it.kind==='gasto'&&it.medio?it.medio:(st.lastMedio||'VISA'),medioTouched:!!it,
        dir:it&&it.dir||'retiro',motivo:it&&it.motivo||'',acc:it&&it.kind==='transferencia'?it.acc:((st.ahorros[0]||{}).id||''),
        cur:it&&it.moneda==='USD'?'USD':'PEN',tc:it&&it.tc?it.tc:(st.lastTc||3.70),hogar:!!(it&&it.hogar),
-       ref:it&&it.ref||'',cuenta:it&&it.kind==='devolucion'?(it.acc?'acc:'+it.acc:'BCP'):'BCP'};
+       ref:it&&it.ref||'',cuenta:it&&(it.kind==='devolucion'||(it.kind==='ingreso'&&it.sav))&&it.acc?'acc:'+it.acc:'BCP'};
   $('rMonto').value=it?(it.moneda==='USD'?it.montoOrig:it.monto).toFixed(2):'';
   $('rNota').value=it?it.nota||'':'';
   $('rFecha').value=it?it.fecha:todayStr();$('rFecha').max=todayStr();
@@ -1127,6 +1129,7 @@ function drawReg(){
   $('trSec').hidden=reg.kind!=='transferencia';$('catSec').hidden=reg.kind==='transferencia'||reg.kind==='ingreso';
   if(reg.kind==='transferencia')drawTr();
   if(reg.kind==='devolucion')drawDev();
+  $('ctaSec').hidden=!(reg.kind==='devolucion'||reg.kind==='ingreso');if(!$('ctaSec').hidden)drawCuenta();
   const chip=c=>`<button type="button" class="chip" data-cat="${esc(c.id)}" aria-pressed="${c.id===reg.cat}"><span class="e">${esc(c.emoji)}</span>${esc(c.nombre)}</button>`;
   {
     const main=st.cfg.categorias.filter(c=>c.principal),rest=st.cfg.categorias.filter(c=>!c.principal);
@@ -1154,7 +1157,9 @@ function drawDev(){
     const fd=d=>new Date(d+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'}).replace(/\.$/,'');
     $('refHint').textContent=(dev?`Ya te devolvieron ${money(dev)} de este gasto. `:'')+`Se descuenta del gasto del ${fd(r.fecha)}. En "Fecha" pon el día en que te pagaron.`;}
   else $('refHint').textContent='Vincúlalo al gasto original para ver cuánto te costó realmente.';
-  const dests=[['BCP','BCP','suma a tu disponible']].concat(st.ahorros.map(a=>['acc:'+a.id,a.nombre||'Ahorros','suma a tus ahorros']));
+}
+function drawCuenta(){
+  const dests=[['BCP','BCP','suma a tu disponible del mes']].concat(st.ahorros.map(a=>['acc:'+a.id,a.nombre||'Ahorros','suma al saldo de tus ahorros desde la fecha que pongas (no al disponible)']));
   if(!dests.some(d=>d[0]===reg.cuenta))reg.cuenta='BCP';
   $('cuentaChips').innerHTML=dests.map(([v,l])=>`<button type="button" class="chip" data-cuenta="${esc(v)}" aria-pressed="${v===reg.cuenta}">${esc(l)}</button>`).join('');
   $('destHint').textContent=(dests.find(d=>d[0]===reg.cuenta)||dests[0])[2].replace(/^./,c=>c.toUpperCase())+'.';
@@ -1237,9 +1242,10 @@ $('rSave').addEventListener('click',()=>{
   if(reg.kind==='devolucion'){const r=reg.ref&&st.items.find(i=>i.id===reg.ref);
     data.tipo=r?r.tipo||'variable':(catById(reg.cat).tipo||'variable');if(r){data.ref=r.id;if(r.hogar)data.hogar=true;}
     if(reg.cuenta.startsWith('acc:')){data.acc=reg.cuenta.slice(4);data.medio='Ahorro';}else data.medio='BCP';}
+  if(reg.kind==='ingreso'&&reg.cuenta.startsWith('acc:')){data.acc=reg.cuenta.slice(4);data.sav=true;}
   let item;
   if(reg.editId){item=st.items.find(x=>x.id===reg.editId);if(!item)return closeReg();
-    const keep=item.kind==='ingreso'&&item.acc?{acc:item.acc,sav:item.sav}:null;
+    const keep=item.kind==='ingreso'&&item.acc&&!data.acc?{acc:item.acc}:null;
     applySav(item,-1);['tipo','medio','ref','acc','sav','dir','cat','moneda','montoOrig','tc','hogar','motivo'].forEach(f=>delete item[f]);Object.assign(item,data);
     if(keep&&item.kind==='ingreso'&&item.cat==='intereses')Object.assign(item,keep);
     applySav(item,1);
@@ -1352,7 +1358,7 @@ function countUp(){
 }
 function renderKpi(){
   const k=viewKey;let fijo=0,vari=0;monthGastos(k).forEach(i=>i.tipo==='fijo'?fijo+=amt(i):vari+=amt(i));
-  const toSav=monthItems(k).filter(i=>i.kind==='devolucion'&&i.acc).reduce((s,i)=>s+i.monto,0)
+  const toSav=monthItems(k).filter(i=>(i.kind==='devolucion'||(i.kind==='ingreso'&&i.sav))&&i.acc).reduce((s,i)=>s+i.monto,0)
     +monthItems(k).filter(i=>i.kind==='transferencia').reduce((s,i)=>s+(i.dir==='deposito'?i.monto:-i.monto),0);
   const inc=incomeFor(k),total=fijo+vari,disp=inc.total-total-toSav;
   const isCur=k===curKey(),dim=daysIn(k),day=isCur?now().getDate():dim;
@@ -1464,7 +1470,7 @@ function accDetail(a,k,ic){
   const paid=(a.conf||{})[k],skip=paid?paid.id:null;
   const its=accItems(a).filter(i=>i.fecha.slice(0,7)===k).sort((x,y)=>x.fecha<y.fecha?-1:x.fecha>y.fecha?1:(x.ts||0)-(y.ts||0));
   let run=startBal;
-  const concept=i=>i.kind==='transferencia'?(i.dir==='deposito'?'Depósito desde BCP':'Retiro a BCP'+(i.motivo?` · ${i.motivo}`:'')):i.kind==='devolucion'?'Devolución':'Intereses';
+  const concept=i=>i.kind==='transferencia'?(i.dir==='deposito'?'Depósito desde BCP':'Retiro a BCP'+(i.motivo?` · ${i.motivo}`:'')):i.kind==='devolucion'?'Devolución':i.cat==='intereses'?'Intereses':`Ingreso · ${(incById(i.cat)||{}).nombre||'Otro'}`+(i.nota?` · ${i.nota}`:'');
   const rows=its.map(i=>{const dl=savDelta(i);run=r2(run+dl);
     return `<tr><td>${dayLbl(k,+i.fecha.slice(8))}</td><td>${esc(concept(i))}${i.nota&&i.kind!=='ingreso'?`<small>${esc(i.nota)}</small>`:''}</td><td class="num ${dl>=0?'pos':'neg'}">${dl>=0?'+':'−'} ${m(Math.abs(dl))}</td><td class="num">${m(run)}</td></tr>`;}).join('');
   return `<div class="accdet">
@@ -1481,7 +1487,7 @@ function savMoves(a,k){
   const its=moneyMonthItems(k).filter(i=>i.acc===a.id&&affectsSav(i));
   if(!its.length&&!accItems(a).some(i=>i.kind==='transferencia'&&i.dir==='retiro'&&i.fecha.slice(0,4)===k.slice(0,4)))return '';
   const sumOf=f=>its.filter(f).reduce((s,i)=>s+i.monto,0);
-  const rows=[['Intereses',sumOf(i=>i.kind==='ingreso'),1],['Devoluciones',sumOf(i=>i.kind==='devolucion'),1],
+  const rows=[['Intereses',sumOf(i=>i.kind==='ingreso'&&i.cat==='intereses'),1],['Ingresos',sumOf(i=>i.kind==='ingreso'&&i.cat!=='intereses'),1],['Devoluciones',sumOf(i=>i.kind==='devolucion'),1],
     ['Depósitos desde BCP',sumOf(i=>i.kind==='transferencia'&&i.dir==='deposito'),1],['Retiros a BCP',sumOf(i=>i.kind==='transferencia'&&i.dir==='retiro'),-1]].filter(r=>r[1]);
   const net=its.reduce((s,i)=>s+savDelta(i),0);
   const m=v=>hideMoney?MASK:money(v);
@@ -1622,7 +1628,7 @@ function renderMovs(){
     const sv=its.filter(i=>ids.includes(i.acc)&&affectsSav(i)),inn=sv.filter(i=>savDelta(i)>0),out=sv.filter(i=>savDelta(i)<0);
     const m=v=>hideMoney?MASK:money(v),tin=inn.reduce((x,i)=>x+savDelta(i),0),tout=Math.abs(out.reduce((x,i)=>x+savDelta(i),0)),net=tin-tout;
     const brk=(arr,lbl)=>{const g={};arr.forEach(i=>{const k=lbl(i);g[k]=(g[k]||0)+Math.abs(savDelta(i));});const e=Object.entries(g);return e.length===1?esc(e[0][0]):e.map(([k,v])=>`${esc(k)} ${m(v)}`).join(' · ');};
-    const inLbl=i=>i.kind==='devolucion'?'Devoluciones':i.kind==='ingreso'?'Intereses':'Depósitos',outLbl=i=>'Retiros'+(i.motivo?` (${i.motivo})`:'');
+    const inLbl=i=>i.kind==='devolucion'?'Devoluciones':i.kind==='ingreso'?(i.cat==='intereses'?'Intereses':'Ingresos'):'Depósitos',outLbl=i=>'Retiros'+(i.motivo?` (${i.motivo})`:'');
     const saldo=accs.reduce((x,a)=>x+accSaldo(a),0),per=isMes?'este mes':'en el periodo';
     const row=(ic,lbl,v,sign,cls,det)=>`<div class="arow"><span class="aic ${cls}">${ic}</span><span class="al">${lbl}${det?`<small>${det}</small>`:''}</span><b class="num ${cls}">${sign} ${m(v)}</b></div>`;
     head=`<div class="fsum accsum"><div class="ttl"><span class="bi" style="--c:var(--accent)">🏦</span>${esc(accs.map(a=>a.nombre||'Ahorros').join(' + '))}</div>
