@@ -1822,7 +1822,7 @@ function renderMovs(){
     head=`<div class="fsum accsum"><div class="ttl"><span class="bi" style="--c:var(--accent)">🏦</span>${esc(accs.map(a=>a.nombre||'Ahorros').join(' + '))}</div>
       <div class="asal"><span>Saldo hoy</span><b class="num">${m(saldo)}</b>${tin||tout?`<em class="${net>=0?'up':'down'}">${net>=0?'▲ +':'▼ −'} ${m(Math.abs(net))} ${per}</em>`:`<em>Sin movimientos ${per}</em>`}</div>
       ${tin||tout?`<div class="arows">${tin?row('↓','Entró',tin,'+','inc',brk(inn,inLbl)):''}${tout?row('↑','Salió',tout,'−','out',brk(out,outLbl)):''}</div>`:''}</div>`;
-  }else if(filtered||!isMes){
+  }else if(filtered){
     const n=[];
     const usdOnly=mf.monedas.length===1&&mf.monedas[0]==='USD';
     if(usdOnly){
