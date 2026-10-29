@@ -1512,7 +1512,7 @@ function renderKpi(){
     <div class="note small" style="margin-top:6px">${isCur?`Día ${day} de ${dim}`:'Mes cerrado'} · gasto de ${esc(monthOnly(k))}</div>
     <div class="split">
       ${(()=>{const its=monthItems(k).filter(i=>i.kind==='ingreso'),t=its.reduce((x,i)=>x+i.monto,0),sv=its.filter(i=>i.acc).reduce((x,i)=>x+i.monto,0);
-        return `<div class="inc"><div class="k">Ingresos del mes</div><div class="v num ${hideMoney?'masked':''}">${hideMoney?MASK:money0(t)}</div>${t&&!hideMoney?`<div class="kk">BCP ${money0(t-sv)} · Ahorros ${money0(sv)}</div>`:''}</div>`;})()}
+        return `<div class="inc"><div class="k">Ingresos del mes</div><div class="v num ${hideMoney?'masked':''}">${hideMoney?MASK:money0(t)}</div></div>`;})()}
       <div><div class="k">Gastos fijos</div><div class="v num">${money0(fijo)}</div></div>
       <div><div class="k">Variables</div><div class="v num">${money0(vari)}</div></div></div>${(()=>{const h=monthGastos(k).filter(i=>i.hogar).reduce((s,i)=>s+amt(i),0);return h?`<div class="kpihome">🏠 Gastos del hogar este mes: <b class="num">${money0(h)}</b></div>`:'';})()}${sparkSVG(k)}`;
   countUp();
