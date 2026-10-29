@@ -540,6 +540,17 @@ h2{font-size:19px}
 .accsum .arow b.inc{color:var(--income)}
 .alert .aref{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:13px;color:var(--muted)}
 .alert .aref b{font-weight:650;color:var(--ink)}
+.hero .after{margin-top:4px;font-size:14px;color:rgba(255,255,255,.7)}.hero .after b{color:#fff;font-weight:650}.hero .after b.neg{color:#ffb4ab}
+.hero .split .kk{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.3}
+.bcpset{margin-top:8px;background:rgba(255,255,255,.12);color:#f1d79c;border:0;border-radius:12px;padding:9px 12px;font-weight:650;font-size:14px}
+.ctarow{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.ctarow:first-of-type{border-top:0}.ctarow b{display:block;font-weight:650}.ctarow small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.ctarow input{height:44px;border-radius:12px;border:0;background:var(--sunk);text-align:right;padding:0 12px;font-size:16px;color:var(--ink);width:100%}
+.paybtn{margin-top:8px;background:var(--accent-soft);color:var(--accent);border:0;border-radius:12px;padding:8px 12px;font-weight:650;font-size:14px}
+.recon{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.45}.recon b{color:var(--ink)}
+.recon .rs{margin-top:6px;padding:9px 11px;border-radius:12px;font-weight:550}
+.recon .rs.ok{background:var(--income-soft);color:var(--income)}.recon .rs.warn{background:var(--gold-soft);color:var(--ink)}.recon .rs.info{background:var(--sunk);color:var(--ink)}
+.rtag{font-weight:650}.rtag.ok{color:var(--income)}.rtag.warn{color:var(--gold)}.rtag.info{color:var(--muted)}
 .mv .a.accin{color:var(--income)}.mv .a.accout{color:var(--crit)}
 .fbrk{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line);padding-top:8px}
 .fsum .nums b.pos{color:var(--income)}
@@ -698,7 +709,7 @@ h2{font-size:19px}
     <div class="card">
       <h2 style="margin-bottom:10px">Ingreso y departamento</h2>
       <div class="fld"><div class="fldhead"><label for="sIngreso">Ingreso neto mensual (S/)</label><span id="setEye"></span></div><input id="sIngreso" data-cfg="ingreso" inputmode="decimal" autocomplete="off"></div>
-      <p class="note small" style="margin:-4px 0 12px">Se usa si en el mes aún no registraste tu sueldo.</p>
+      <p class="note small" style="margin:-4px 0 12px">Se usa en el simulador del depa.</p>
       <div class="two">
         <div class="fld"><label for="sCuota">Cuota del depa (S/)</label><input id="sCuota" data-cfg="cuota" inputmode="decimal"></div>
         <div class="fld"><label for="sParte">Tu parte (%)</label><input id="sParte" data-cfg="parte" inputmode="decimal"></div>
@@ -792,12 +803,13 @@ h2{font-size:19px}
     </div>
     <div class="rsec" id="trSec" hidden>
       <div class="lbl">Movimiento</div>
-      <div class="seg wide" id="dirSeg"><button data-dir="retiro" aria-pressed="true" type="button">Retiro a BCP</button><button data-dir="deposito" aria-pressed="false" type="button">Depósito a ahorros</button></div>
+      <div class="seg wide" id="dirSeg"><button data-dir="retiro" aria-pressed="true" type="button">Ahorros → BCP</button><button data-dir="deposito" aria-pressed="false" type="button">BCP → Ahorros</button><button data-dir="pago" aria-pressed="false" type="button">Pagar tarjeta</button></div>
+      <div id="cardSec" hidden><div class="lbl" style="margin-top:6px">¿Qué tarjeta pagas?</div><div class="chips pay" id="cardChips"></div><div id="payAll"></div></div>
       <div class="lbl" style="margin-top:6px" id="accLbl">Cuenta de ahorro</div>
       <div class="chips pay" id="accChips"></div>
       <div class="flow" id="flowTxt"></div>
       <div id="motSec"><div class="lbl" style="margin-top:6px">¿Por qué retiras? <span class="opt">(opcional)</span></div><div class="chips pay" id="motChips"></div></div>
-      <div class="tiphint">No es gasto ni ingreso: solo mueve tu plata entre tus cuentas.</div>
+      <div class="tiphint" id="trHint">No es gasto ni ingreso: solo mueve tu plata entre tus cuentas.</div>
     </div>
     <div class="rsec" id="catSec">
       <div class="lbl" id="catLbl">Categoría</div>
@@ -858,6 +870,43 @@ const affectsSav=i=>!!(i&&i.acc&&(i.kind==='devolucion'||i.kind==='transferencia
 const savDelta=i=>i.kind==='transferencia'?(i.dir==='deposito'?i.monto:-i.monto):i.monto;
 function applySav(){} // el saldo ya no se guarda: se calcula desde el estado de cuenta
 const r2=v=>Math.round(v*100)/100;
+// ---- cuenta BCP y tarjetas de crédito: saldo inicial + movimientos posteriores ----
+const CARDS=['VISA','AMEX'];
+const bcpFlow=i=>{switch(i.kind){
+  case 'gasto':return i.medio==='Ahorro'?0:-i.monto;
+  case 'ingreso':case 'devolucion':return i.acc?0:i.monto;
+  case 'transferencia':return i.dir==='retiro'?i.monto:i.dir==='deposito'?-i.monto:0;}return 0;}; // el pago de tarjeta no resta: sus compras ya se restaron
+const cardFlow=c=>i=>i.kind==='gasto'&&i.medio===c?i.monto:(i.kind==='transferencia'&&i.dir==='pago'&&i.card===c?-i.monto:0);
+function ledgerAt(base,flow,d,skipId){if(!base)return null;const bts=base.ts||0;let v=Number(base.saldo)||0;
+  for(const i of st.items){if(i.id===skipId)continue;const dl=flow(i);if(!dl)continue;const known=(i.ts||0)<=bts&&i.fecha<=base.fecha;
+    if(known){if(d<base.fecha&&i.fecha>d)v-=dl;}else if(i.fecha<=d)v+=dl;}
+  return r2(v);}
+const ctaBase=k=>(st.cuentas||{})[k]&&st.cuentas[k].base||null;
+const bcpSaldo=skip=>r2(st.items.reduce((v,i)=>i.id===skip?v:v+bcpFlow(i),0)-unregTotal());
+// ---- conciliación de tarjetas ----
+// Cada día con pagos a una tarjeta es un "pago". Se compara lo pagado con las compras registradas
+// desde el pago anterior (más lo que quedó sin cubrir). Si pagaste más, la diferencia son gastos
+// no registrados y se resta del saldo; si registras luego esa compra, la diferencia baja sola.
+const TOL=1;
+function cardEvents(c,skip,extra){
+  const its=st.items.filter(i=>i.id!==skip);if(extra)its.push(extra);
+  const pays=its.filter(i=>i.kind==='transferencia'&&i.dir==='pago'&&i.card===c);
+  const days=[...new Set(pays.map(i=>i.fecha))].sort();
+  const buys=its.filter(i=>i.kind==='gasto'&&i.medio===c);
+  let prev=null,carry=0;const ev=[];
+  for(const d of days){
+    const reg=r2(buys.filter(i=>(prev===null||i.fecha>prev)&&i.fecha<=d).reduce((v,i)=>v+i.monto,0));
+    const paid=r2(pays.filter(i=>i.fecha===d).reduce((v,i)=>v+i.monto,0));
+    const owed=r2(reg+carry),diff=r2(paid-owed);
+    ev.push({card:c,desde:prev,fecha:d,reg,carry,owed,paid,diff,extra:diff>TOL?diff:0,short:diff<-TOL?-diff:0,ids:pays.filter(i=>i.fecha===d).map(i=>i.id)});
+    carry=diff<-TOL?-diff:0;prev=d;}
+  const open=r2(buys.filter(i=>prev===null||i.fecha>prev).reduce((v,i)=>v+i.monto,0)+carry);
+  return {ev,open,carry,last:prev};
+}
+function reconFor(i){const e=cardEvents(i.card).ev.find(x=>x.ids.includes(i.id));if(!e)return null;
+  return {e,cls:e.extra?'warn':e.short?'info':'ok',txt:e.extra?`${money(e.extra)} sin registrar`:e.short?`faltan ${money(e.short)} por pagar`:'cuadra con lo registrado ✓'};}
+const unregTotal=()=>r2(CARDS.reduce((x,c)=>x+cardEvents(c).ev.reduce((y,e)=>y+e.extra,0),0));
+const cardDebt=(c,skip)=>cardEvents(c,skip).open;
 const dayBefore=d=>dstr(new Date(new Date(d+'T12:00').getTime()-864e5));
 const accItems=(a,skipId)=>st.items.filter(i=>i.acc===a.id&&affectsSav(i)&&i.id!==skipId);
 // saldo al cierre del día d (incluye los movimientos de ese día).
@@ -918,7 +967,7 @@ const now=()=>new Date();
 const todayStr=()=>dstr(now());
 const curKey=()=>todayStr().slice(0,7);
 const defaultAcc=()=>({id:'compartamos',nombre:'Ahorro principal',tipo:'Ahorro',base:{fecha:dstr(new Date(Date.now()-864e5)),saldo:20000,ts:Date.now()},trea:4.6,desde:curKey(),conf:{}});
-const DEFAULT_STATE=()=>({v:8,cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
+const DEFAULT_STATE=()=>({v:9,cuentas:{},cfg:{ingreso:6100,cuota:4000,parte:50,categorias:clone(DEFAULT_CATS),suscripciones:[]},ahorros:[defaultAcc()],items:[],lastBackup:null,lastMedio:'VISA'});
 
 // ---------- estado ----------
 function migrate(s){
@@ -968,6 +1017,8 @@ function migrate(s){
     (s.ahorros||[]).forEach(a=>{if(a.id==='compartamos'&&Number(a.trea)===4.9)a.trea=4.6;});
     s.v=8;
   }
+  if(s.v<9){s.cuentas=s.cuentas||{};s.v=9;} // saldo BCP y deuda de tarjetas
+  if(!s.cuentas)s.cuentas={};
   return s;
 }
 function load(){
@@ -1089,7 +1140,7 @@ function openReg(id){
   const it=id?st.items.find(x=>x.id===id):null;
   reg={kind:it?it.kind||'gasto':'gasto',cat:it?it.cat:null,tipo:it&&it.tipo?it.tipo:'variable',editId:it?it.id:null,showMore:false,
        medio:it&&it.kind==='gasto'&&it.medio?it.medio:(st.lastMedio||'VISA'),medioTouched:!!it,
-       dir:it&&it.dir||'retiro',motivo:it&&it.motivo||'',acc:it&&it.kind==='transferencia'?it.acc:((st.ahorros[0]||{}).id||''),
+       dir:it&&it.dir||'retiro',card:it&&it.card||'',motivo:it&&it.motivo||'',acc:it&&it.kind==='transferencia'?it.acc:((st.ahorros[0]||{}).id||''),
        cur:it&&it.moneda==='USD'?'USD':'PEN',tc:it&&it.tc?it.tc:(st.lastTc||3.70),hogar:!!(it&&it.hogar),
        ref:it&&it.ref||'',cuenta:it&&(it.kind==='devolucion'||(it.kind==='ingreso'&&it.sav))&&it.acc?'acc:'+it.acc:'BCP'};
   $('rMonto').value=it?(it.moneda==='USD'?it.montoOrig:it.monto).toFixed(2):'';
@@ -1115,7 +1166,7 @@ function drawReg(){
   if(grp==='ingreso'){
     const sub=(v,on,e,n)=>`<button type="button" class="chip" data-isub="${v}" aria-pressed="${on}"><span class="e">${e}</span>${n}</button>`;
     $('subChips').innerHTML=INC_CATS.filter(c=>c.id!=='reembolso'||reg.cat==='reembolso').map(c=>sub('cat:'+c.id,reg.kind==='ingreso'&&reg.cat===c.id,esc(c.emoji),esc(c.nombre))).join('')
-      +sub('devolucion',reg.kind==='devolucion','↩️','Devolución')+sub('transferencia',reg.kind==='transferencia','⇄','Ahorros ⇄ BCP');
+      +sub('devolucion',reg.kind==='devolucion','↩️','Devolución')+sub('transferencia',reg.kind==='transferencia','⇄','Transferencia / pago tarjeta');
   }
   $('catLbl').textContent=reg.kind==='devolucion'?'Categoría del gasto devuelto':'Categoría';
   $('amtBox').classList.toggle('inc',reg.kind==='ingreso'||reg.kind==='devolucion');
@@ -1176,11 +1227,36 @@ function syncFx(){
   $('fxEq').textContent=m>0&&tc>0?'≈ '+money(m*tc):'';
 }
 $('curSeg').addEventListener('click',e=>{const b=e.target.closest('[data-cur]');if(!b)return;reg.cur=b.dataset.cur;drawReg();});
-$('rMonto').addEventListener('input',syncFx);
+const fdm=d=>new Date(d+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'}).replace(/\.$/,'');
+function payEvent(monto){
+  const f=$('rFecha').value||todayStr(),x={id:'__new',kind:'transferencia',dir:'pago',card:reg.card,fecha:f,monto:monto||0,ts:Date.now()};
+  const r=cardEvents(reg.card,reg.editId,x);return r.ev.find(e=>e.fecha===f);}
+function payPreview(){
+  if(!(reg.kind==='transferencia'&&reg.dir==='pago'&&CARDS.includes(reg.card)))return;
+  const m=parseNum($('rMonto').value)||0,e=payEvent(m);if(!e){$('payAll').innerHTML='';return;}
+  const other=r2(e.paid-m),since=e.desde?`desde tu último pago (${fdm(e.desde)})`:'desde que empezaste a registrar';
+  let h=`<div class="recon"><div>Compras con ${reg.card} registradas ${since}: <b>${money(e.reg)}</b>${e.carry?` + ${money(e.carry)} pendiente del pago anterior`:''}${other>0?`<br>Otro pago de este día: <b>${money(other)}</b>`:''}</div>`;
+  if(m>0){h+=Math.abs(e.diff)<=TOL?`<div class="rs ok">✓ Coincide con lo registrado. Tu saldo no cambia.</div>`:
+    e.diff>0?`<div class="rs warn">Pagas <b>${money(e.diff)}</b> más de lo registrado. Se tomará como gastos no registrados y se restará de tu saldo. Si luego registras esas compras, la diferencia baja sola.</div>`:
+    `<div class="rs info">Pagas <b>${money(-e.diff)}</b> menos de lo registrado. Queda pendiente para tu próximo pago; tu saldo no cambia.</div>`;}
+  else if(r2(e.owed-other)>0)h+=`<button type="button" class="paybtn" data-payall="${r2(e.owed-other)}">Usar lo registrado · ${money(r2(e.owed-other))}</button>`;
+  $('payAll').innerHTML=h+'</div>';}
+$('rMonto').addEventListener('input',()=>{syncFx();payPreview();});
+$('rFecha').addEventListener('change',payPreview);
 $('rTc').addEventListener('input',()=>{const v=parseNum($('rTc').value);if(v>0)reg.tc=v;syncFx();});
 $('rHogar').addEventListener('change',()=>{reg.hogar=$('rHogar').checked;});
 function drawTr(){
   document.querySelectorAll('#dirSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dir===reg.dir));
+  const pago=reg.dir==='pago';$('cardSec').hidden=!pago;
+  $('trHint').textContent=pago?'No es un gasto ni resta de tu saldo: tus compras con la tarjeta ya se restaron cuando las registraste. Queda en tus movimientos para que lleves el control.':'No es gasto ni ingreso: solo mueve tu plata entre tus cuentas.';
+  if(pago){
+    if(!CARDS.includes(reg.card))reg.card=CARDS.map(c=>[c,cardDebt(c,reg.editId)||0]).sort((a,b)=>b[1]-a[1])[0][0];
+    $('cardChips').innerHTML=CARDS.map(c=>`<button type="button" class="chip" data-card="${c}" aria-pressed="${c===reg.card}">${c}</button>`).join('');
+    const d=cardDebt(reg.card,reg.editId);
+    payPreview();
+    $('accLbl').hidden=true;$('accChips').hidden=true;$('motSec').hidden=true;
+    $('flowTxt').innerHTML=`<span>BCP</span><span class="ar">→</span><span>${reg.card}</span>`;return;}
+  $('accLbl').hidden=false;$('accChips').hidden=false;
   if(!st.ahorros.some(a=>a.id===reg.acc))reg.acc=(st.ahorros[0]||{}).id||'';
   $('accChips').innerHTML=st.ahorros.length?st.ahorros.map(a=>`<button type="button" class="chip" data-acc="${esc(a.id)}" aria-pressed="${a.id===reg.acc}">${esc(a.nombre||'Ahorros')}</button>`).join(''):'<span class="tiphint">Agrega una cuenta en Ajustes → Ahorros e inversiones.</span>';
   $('accLbl').hidden=st.ahorros.length<2&&!!st.ahorros.length;$('accChips').hidden=st.ahorros.length===1;
@@ -1192,9 +1268,11 @@ function drawTr(){
 const MOTIVOS=['Liquidez','Emergencia','Compra planificada','Otro'];
 $('motChips').addEventListener('click',e=>{const b=e.target.closest('[data-mot]');if(!b)return;reg.motivo=reg.motivo===b.dataset.mot?'':b.dataset.mot;drawReg();});
 $('dirSeg').addEventListener('click',e=>{const b=e.target.closest('[data-dir]');if(!b)return;reg.dir=b.dataset.dir;drawReg();});
+$('cardChips').addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(!b)return;reg.card=b.dataset.card;drawReg();});
+$('payAll').addEventListener('click',e=>{const b=e.target.closest('[data-payall]');if(!b)return;$('rMonto').value=(+b.dataset.payall).toFixed(2);$('amtErr').textContent='';payPreview();});
 $('accChips').addEventListener('click',e=>{const b=e.target.closest('[data-acc]');if(!b)return;reg.acc=b.dataset.acc;drawReg();});
-const trTitle=i=>i.dir==='deposito'?'Depósito a ahorros':'Retiro de ahorros';
-const trFlow=i=>{const an=(accById(i.acc)||{}).nombre||'Ahorros';return (i.dir==='deposito'?`BCP → ${an}`:`${an} → BCP`)+(i.motivo?` · ${i.motivo}`:'');};
+const trTitle=i=>i.dir==='pago'?`Pago tarjeta ${i.card||''}`.trim():i.dir==='deposito'?'Depósito a ahorros':'Retiro de ahorros';
+const trFlow=i=>{if(i.dir==='pago')return `BCP → ${i.card||'Tarjeta'}`;const an=(accById(i.acc)||{}).nombre||'Ahorros';return (i.dir==='deposito'?`BCP → ${an}`:`${an} → BCP`)+(i.motivo?` · ${i.motivo}`:'');};
 function syncDate(){
   const v=$('rFecha').value,t=todayStr(),y=dstr(new Date(now().getTime()-864e5));
   $('dateTxt').textContent=v===t?'Hoy':v===y?'Ayer':new Date(v+'T12:00').toLocaleDateString('es-PE',{day:'numeric',month:'short'});
@@ -1226,7 +1304,8 @@ function bad(msg,el){$('amtErr').textContent=msg;const x=el||$('amtBox');x.class
 $('rSave').addEventListener('click',()=>{
   const monto=parseNum($('rMonto').value);
   if(!(monto>0)){bad('Escribe el monto');$('rMonto').focus();return;}
-  if(reg.kind==='transferencia'){
+  if(reg.kind==='transferencia'&&reg.dir==='pago'){if(!CARDS.includes(reg.card)){bad('Elige la tarjeta',$('cardChips'));return;}}
+  else if(reg.kind==='transferencia'){
     if(!reg.acc){bad('Primero agrega una cuenta de ahorro en Ajustes');return;}
     const a=accById(reg.acc),prev=reg.editId&&st.items.find(x=>x.id===reg.editId);
     const avail=accSaldo(a,prev?prev.id:null);
@@ -1237,7 +1316,8 @@ $('rSave').addEventListener('click',()=>{
   const data={kind:reg.kind,fecha:$('rFecha').value||todayStr(),monto:Math.round(monto*(tc||1)*100)/100,cat:reg.cat,nota:$('rNota').value.trim().slice(0,80)};
   if(tc){data.moneda='USD';data.montoOrig=Math.round(monto*100)/100;data.tc=tc;st.lastTc=tc;}
   if(reg.kind==='gasto'&&reg.hogar)data.hogar=true;
-  if(reg.kind==='transferencia'){delete data.cat;data.dir=reg.dir;data.acc=reg.acc;data.medio='BCP';if(reg.dir==='retiro'&&reg.motivo)data.motivo=reg.motivo;}
+  if(reg.kind==='transferencia'&&reg.dir==='pago'){delete data.cat;data.dir='pago';data.card=reg.card;data.medio='BCP';}
+  else if(reg.kind==='transferencia'){delete data.cat;data.dir=reg.dir;data.acc=reg.acc;data.medio='BCP';if(reg.dir==='retiro'&&reg.motivo)data.motivo=reg.motivo;}
   if(reg.kind==='gasto'){data.tipo=reg.tipo;data.medio=reg.medio;if(reg.tipo==='variable'&&MEDIOS.includes(reg.medio))st.lastMedio=reg.medio;}
   if(reg.kind==='devolucion'){const r=reg.ref&&st.items.find(i=>i.id===reg.ref);
     data.tipo=r?r.tipo||'variable':(catById(reg.cat).tipo||'variable');if(r){data.ref=r.id;if(r.hogar)data.hogar=true;}
@@ -1246,7 +1326,7 @@ $('rSave').addEventListener('click',()=>{
   let item;
   if(reg.editId){item=st.items.find(x=>x.id===reg.editId);if(!item)return closeReg();
     const keep=item.kind==='ingreso'&&item.acc&&!data.acc?{acc:item.acc}:null;
-    applySav(item,-1);['tipo','medio','ref','acc','sav','dir','cat','moneda','montoOrig','tc','hogar','motivo'].forEach(f=>delete item[f]);Object.assign(item,data);
+    applySav(item,-1);['tipo','medio','ref','acc','sav','dir','cat','moneda','montoOrig','tc','hogar','motivo','card'].forEach(f=>delete item[f]);Object.assign(item,data);
     if(keep&&item.kind==='ingreso'&&item.cat==='intereses')Object.assign(item,keep);
     applySav(item,1);
     st.ahorros.forEach(a=>Object.values(a.conf||{}).forEach(c=>{if(c.id===item.id)c.monto=item.kind==='ingreso'&&item.cat==='intereses'?item.monto:c.monto;}));}
@@ -1256,7 +1336,7 @@ $('rSave').addEventListener('click',()=>{
   const k=item.fecha.slice(0,7);let al='';
   if(item.kind==='gasto'){const c=catById(item.cat),s=statusFor(k,c,splitFor(k)[c.id]);
     if(s.level==='crit'||s.level==='warn')al=`<span class="al ${s.level}">${esc(c.nombre)}: ${esc(s.text)}</span>`;}
-  if(item.kind==='transferencia'){showToast(`<b>⇄ ${money(item.monto)} · ${trTitle(item)}</b>${esc(trFlow(item))}${item.dir==='retiro'?' · sumado a tu disponible':' · restado de tu disponible'}`,reg.editId?null:item.id);refresh();return;}
+  if(item.kind==='transferencia'){const rc=item.dir==='pago'?reconFor(item):null;showToast(`<b>⇄ ${money(item.monto)} · ${trTitle(item)}</b>${esc(trFlow(item))}${rc?' · '+rc.txt:''}${item.dir==='pago'?(rc&&rc.e.extra?' · esa diferencia se restó de tu saldo':' · no cambia tu saldo'):item.dir==='retiro'?' · sumado a tu saldo':' · restado de tu saldo'}`,reg.editId?null:item.id);refresh();return;}
   const c=item.kind==='ingreso'?incById(item.cat):catById(item.cat);
   if(item.kind==='devolucion'&&item.ref){const r=st.items.find(i=>i.id===item.ref);if(r)al=`<span class="al">Neto del gasto original: ${money(r.monto-refunded(r.id))}</span>`;}
   const pre=item.kind==='ingreso'?'+ ':item.kind==='devolucion'?'↩ ':'';
@@ -1299,6 +1379,9 @@ function navMonth(d){const n=shiftKey(viewKey,d);if(n>curKey())return;viewKey=n;
 $('prev').onclick=()=>navMonth(-1);$('next').onclick=()=>navMonth(1);
 $('prev2').onclick=()=>navMonth(-1);$('next2').onclick=()=>navMonth(1);
 $('s-res').addEventListener('click',e=>{
+  const rc=e.target.closest('[data-recon]');
+  if(rc){const[c,de,ha]=rc.dataset.recon.split('|');const first=st.items.filter(i=>i.medio===c).map(i=>i.fecha).sort()[0]||ha;
+    mf={mode:'fechas',cats:[],medios:[c],monedas:[],tipos:[],desde:de?dstr(new Date(new Date(de+'T12:00').getTime()+864e5)):first,hasta:ha};go('movs');return;}
   const d=e.target.closest('[data-drill]');
   if(d){mf={mode:'mes',cats:['g:'+d.dataset.drill],medios:[],monedas:[],tipos:[],desde:mf.desde,hasta:mf.hasta};go('movs');return;}
   const b=e.target.closest('[data-more]');if(!b)return;
@@ -1314,7 +1397,11 @@ function renderRes(){
   const k=viewKey;$('mlabel').textContent=monthName(k);$('next').disabled=k>=curKey();
   renderKpi();
   const pend=k===curKey()?pendingInterest():[];
-  $('alerts').innerHTML=pend.map(({a,k:pk})=>`<div class="alert info"><span class="dot"></span><div>Confirma los intereses de ${esc(monthOnly(pk))} de <b>${esc(a.nombre)}</b>. <button type="button" data-goint="${esc(pk)}">Ir a verificar</button></div></div>`).join('')+
+  const recAl=CARDS.flatMap(c=>cardEvents(c).ev.filter(e=>(e.extra||e.short)&&e.fecha.slice(0,7)===k)).map(e=>{
+    const per=e.desde?`entre el ${fdm(dstr(new Date(new Date(e.desde+'T12:00').getTime()+864e5)))} y el ${fdm(e.fecha)}`:`hasta el ${fdm(e.fecha)}`;
+    return e.extra?`<div class="alert warn tap" data-recon="${e.card}|${e.desde||''}|${e.fecha}"><span class="dot"></span><div><b>💳 ${e.card}:</b> pagaste <b>${money(e.paid)}</b> y registraste <b>${money(e.owed)}</b>. Hay <b>${money(e.extra)}</b> en gastos sin registrar; ya se restaron de tu saldo.<div class="aref"><span>Compras ${per} · toca para revisarlas</span></div></div></div>`
+      :`<div class="alert info tap" data-recon="${e.card}|${e.desde||''}|${e.fecha}"><span class="dot"></span><div><b>💳 ${e.card}:</b> registraste <b>${money(e.owed)}</b> pero pagaste <b>${money(e.paid)}</b>. Quedan <b>${money(e.short)}</b> pendientes para tu próximo pago.<div class="aref"><span>Compras ${per} · toca para revisarlas</span></div></div></div>`;}).join('');
+  $('alerts').innerHTML=recAl+pend.map(({a,k:pk})=>`<div class="alert info"><span class="dot"></span><div>Confirma los intereses de ${esc(monthOnly(pk))} de <b>${esc(a.nombre)}</b>. <button type="button" data-goint="${esc(pk)}">Ir a verificar</button></div></div>`).join('')+
     (()=>{const t=splitFor(k),isCur=k===curKey(),dim=daysIn(k),day=isCur?now().getDate():dim;return activeAlerts(k).map(({c,s})=>{const o=t[c.id]||{f:0,v:0},sp=o.f+o.v,lim=Number(c.presupuesto)||0,pc=v=>Math.round(v/lim*100)+'%';
       const proj=isCur&&day<dim&&c.tipo==='variable'?o.f+o.v/day*dim:null;
       const crossed=sp>=lim?(s.text.match(/día (\d+)/)||[])[1]:null;
@@ -1358,16 +1445,15 @@ function countUp(){
 }
 function renderKpi(){
   const k=viewKey;let fijo=0,vari=0;monthGastos(k).forEach(i=>i.tipo==='fijo'?fijo+=amt(i):vari+=amt(i));
-  const toSav=monthItems(k).filter(i=>(i.kind==='devolucion'||(i.kind==='ingreso'&&i.sav))&&i.acc).reduce((s,i)=>s+i.monto,0)
-    +monthItems(k).filter(i=>i.kind==='transferencia').reduce((s,i)=>s+(i.dir==='deposito'?i.monto:-i.monto),0);
-  const inc=incomeFor(k),total=fijo+vari,disp=inc.total-total-toSav;
+  const total=fijo+vari;
   const isCur=k===curKey(),dim=daysIn(k),day=isCur?now().getDate():dim;
-  $('kpi').innerHTML=`<div class="top"><span class="lbl">Disponible del mes</span>${eyeBtn()}</div>
-    <div class="big num ${hideMoney?'masked':disp<0?'neg':''}"${hideMoney?'':` data-count="${disp}" data-dec="2"`}>${hideMoney?MASK:money(disp)}</div>
-    ${hideMoney?'':`<div class="meter"><i style="width:${inc.total?Math.min(100,total/inc.total*100):0}%"></i></div>`}
-    <div class="note small"${hideMoney?' style="margin-top:6px"':''}>${hideMoney?'':`${inc.total?Math.round(total/inc.total*100):0}% de tus ingresos usado · `}${isCur?`día ${day} de ${dim}`:'mes cerrado'}</div>
+  const bcp=bcpSaldo(),debts=CARDS.map(c=>[c,cardDebt(c)]),debt=debts.reduce((x,[,v])=>x+(v||0),0);
+  $('kpi').innerHTML=`<div class="top"><span class="lbl">Saldo disponible · hoy</span>${eyeBtn()}</div>
+    <div class="big num ${hideMoney?'masked':bcp<0?'neg':''}"${hideMoney?'':` data-count="${bcp}" data-dec="2"`}>${hideMoney?MASK:money(bcp)}</div>
+    <div class="after">Tus ingresos − todos tus gastos (también los de tarjeta) − lo que mandas a ahorros</div>
+    <div class="note small" style="margin-top:6px">${isCur?`Día ${day} de ${dim}`:'Mes cerrado'} · gasto de ${esc(monthOnly(k))}</div>
     <div class="split">
-      <div class="inc"><div class="k">Ingresos${inc.est?' (est.)':''}</div><div class="v num ${hideMoney?'masked':''}">${hideMoney?MASK:money0(inc.total)}</div></div>
+      <div class="card2"><div class="k">Tarjetas desde su último pago</div><div class="v num">${money0(debt)}</div><div class="kk">${debts.map(([c,v])=>`${c} ${v===null?'—':money(v)}`).join(' · ')}</div></div>
       <div><div class="k">Gastos fijos</div><div class="v num">${money0(fijo)}</div></div>
       <div><div class="k">Variables</div><div class="v num">${money0(vari)}</div></div></div>${(()=>{const h=monthGastos(k).filter(i=>i.hogar).reduce((s,i)=>s+amt(i),0);return h?`<div class="kpihome">🏠 Gastos del hogar este mes: <b class="num">${money0(h)}</b></div>`:'';})()}${sparkSVG(k)}`;
   countUp();
@@ -1610,7 +1696,7 @@ function renderMovs(){
   const match=i=>{
     const tr=i.kind==='transferencia';
     if(mf.cats.length&&!mf.cats.some(c=>{const[k,id]=c.split(':');return k==='g'?isExp(i)&&i.cat===id:i.kind==='ingreso'&&i.cat===id;}))return false;
-    if(mf.medios.length&&!mf.medios.some(m=>m.startsWith('acc:')?i.acc===m.slice(4):(i.medio===m&&(!i.acc||tr))))return false;
+    if(mf.medios.length&&!mf.medios.some(m=>m.startsWith('acc:')?i.acc===m.slice(4):((i.medio===m&&(!i.acc||tr))||i.card===m)))return false;
     if(mf.monedas.length&&!mf.monedas.includes(i.moneda||'PEN'))return false;
     if(mf.tipos.length&&!mf.tipos.some(t=>tipoMatch(i,t)))return false;
     return true;};
@@ -1666,7 +1752,7 @@ function renderMovs(){
       return `<div class="day"><div class="dh"><span>${esc(new Date(d+'T12:00').toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'short',...(multiYear?{year:'numeric'}:{})}))}</span><span class="num">${net?money(net):''}</span></div>
       <div class="daycard">${l.map(i=>{
         const accAmt=i=>{const dl=savDelta(i);return `<span class="a num ${dl>=0?'accin':'accout'}">${dl>=0?'+':'−'} ${money(Math.abs(dl))}<small>${dl>=0?'entró a la cuenta':'salió de la cuenta'}</small></span>`;};
-        if(i.kind==='transferencia')return `<button class="mv tr" data-id="${esc(i.id)}" type="button"><span class="ic">⇄</span><span class="d"><div>${esc(i.nota||trTitle(i))}</div><div>${esc(trFlow(i))}</div></span>${accOnly?accAmt(i):`<span class="a num">${money(i.monto)}</span>`}</button>`;
+        if(i.kind==='transferencia')return `<button class="mv tr" data-id="${esc(i.id)}" type="button"><span class="ic">⇄</span><span class="d"><div>${esc(i.nota||trTitle(i))}</div><div>${esc(trFlow(i))}${i.dir==='pago'?(r=>r?` · <span class="rtag ${r.cls}">${esc(r.txt)}</span>`:'')(reconFor(i)):''}</div></span>${accOnly?accAmt(i):`<span class="a num">${money(i.monto)}</span>`}</button>`;
         const isInc=i.kind==='ingreso',isDev=i.kind==='devolucion',c=isInc?incById(i.cat):catById(i.cat);
         const rf=i.kind==='gasto'?refunded(i.id):0;
         const parts=[i.nota?c.nombre:'',(isDev?destLabel(i):medioTxt(i.medio))||(i.nota?'':c.nombre)];
